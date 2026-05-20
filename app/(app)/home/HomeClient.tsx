@@ -351,9 +351,13 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
     loadRecommendation(activeMood, next);
   };
 
+  // Semantic similarity (cosine) is typically 0.3–0.85 for useful results.
+  // We rescale to a user-friendly 70–99% range so "Perfect Match" is always
+  // credible, while still reflecting relative ranking between results.
+  const rawSim = match?.similarity ?? null;
   const matchPct = match
-    ? match.similarity != null
-      ? Math.round(match.similarity * 100)
+    ? rawSim != null
+      ? Math.round(70 + (rawSim * 29)) // maps 0–1 cosine → 70–99%
       : Math.min(99, Math.round(((match.vote_average ?? 0) / 10) * 100 * 0.85 + 15))
     : 0;
 
@@ -539,7 +543,7 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
             <div className="quick-picks-row">
               {quickPicks.map(p => {
                 const pct = p.similarity != null
-                  ? Math.round(p.similarity * 100)
+                  ? Math.round(70 + (p.similarity * 29)) // rescale cosine → 70–99%
                   : Math.min(99, Math.round(((p.vote_average ?? 0) / 10) * 100 * 0.85 + 15));
                 return (
                   <div
