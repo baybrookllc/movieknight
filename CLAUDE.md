@@ -74,5 +74,5 @@ Identified 7 bottlenecks across LCP, INP, TTFB, and bundle size:
 3. **Fix pre-existing lint errors** — Dedicated pass to fix `react-hooks/set-state-in-effect` in `home/page.tsx`, `BrowseClient.tsx`, `for-you/page.tsx`, `ListsClient.tsx`.
 4. **Replace in-memory rate limiters** — Install Upstash Redis via Vercel Marketplace; replace `rlStore` Maps in `app/api/claude/ask/route.ts`, `supabase/functions/semantic-search/index.ts`, `supabase/functions/generate-embedding/index.ts`.
 
-**Status:** 8 performance optimizations shipped, build clean, TypeScript clean. Homepage SSR restructure is the primary remaining LCP work. ✅
+**Status:** 8 performance optimizations deployed to production at https://movieknight.ca (dpl_Dzhs7ovLphYG5iiTmV3MCF8AREpa, commit ede0e5b). Merged to master and pushed. Homepage SSR restructure is the primary remaining LCP work. ✅
 
