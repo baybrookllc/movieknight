@@ -17,7 +17,7 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
     const db = createSupabasePublicClient();
     const { data, error } = await db.functions.invoke(
       `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12`,
-      { method: 'GET' }
+      { method: 'GET', signal: AbortSignal.timeout(5000) }
     );
 
     if (error || !data) return { match: null, quickPicks: [] };

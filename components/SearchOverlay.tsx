@@ -51,8 +51,8 @@ export default function SearchOverlay() {
     setLoading(true);
     try {
       const [tmdbInvoke, semInvoke] = await Promise.all([
-        supabase.functions.invoke(`tmdb-cache?action=search&query=${encodeURIComponent(q)}`, { method: 'GET' }),
-        supabase.functions.invoke(`semantic-search?query=${encodeURIComponent(q)}&limit=10`, { method: 'GET' }),
+        supabase.functions.invoke(`tmdb-cache?action=search&query=${encodeURIComponent(q)}`, { method: 'GET', signal: AbortSignal.timeout(8000) }),
+        supabase.functions.invoke(`semantic-search?query=${encodeURIComponent(q)}&limit=10`, { method: 'GET', signal: AbortSignal.timeout(8000) }),
       ]);
       if (gen !== genRef.current) return;
       const [tmdb, sem] = [

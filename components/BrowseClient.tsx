@@ -195,11 +195,11 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
         const [tmdbInvoke, semInvoke] = await Promise.all([
           supabase.functions.invoke(
             `tmdb-cache?action=search&query=${encodeURIComponent(query)}${fmt ? `&type=${fmt}` : ''}`,
-            { method: 'GET' }
+            { method: 'GET', signal: AbortSignal.timeout(8000) }
           ),
           supabase.functions.invoke(
             `semantic-search?query=${encodeURIComponent(query)}&limit=20${fmt ? `&media_type=${fmt}` : ''}`,
-            { method: 'GET' }
+            { method: 'GET', signal: AbortSignal.timeout(8000) }
           ),
         ]);
         const tmdbList: Title[] = tmdbInvoke.data?.results ?? [];
