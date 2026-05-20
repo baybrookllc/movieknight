@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { TMDB_IMG } from '@/lib/utils';
 import Link from 'next/link';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
+import { TMDB_IMG, statusProgress } from '@/lib/utils';
 
 interface TrackerItem {
   title_id: string;
@@ -57,7 +58,7 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
   if (!userId && !loading) {
     return (
       <div style={{ padding: '8px 4px', minWidth: 260, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-        <Link href="/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link> to track what you're watching.
+        <Link href="/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link> to track what you&apos;re watching.
       </div>
     );
   }
@@ -90,15 +91,6 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
     );
   }
 
-  const getProgress = (status: string) => {
-    switch (status) {
-      case 'watched': return 100;
-      case 'watching': return 55;
-      case 'want_to_watch': return 10;
-      default: return 0;
-    }
-  };
-
   return (
     <div>
       {showLabel && (
@@ -107,7 +99,7 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
         {items.filter(item => item.titles).map(item => {
           const t = item.titles!;
-          const pct = getProgress(item.status);
+          const pct = statusProgress(item.status);
           const poster = t.poster_path
             ? `${TMDB_IMG}${t.poster_path}`
             : undefined;
@@ -129,16 +121,13 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
             >
               {/* Poster */}
               {poster ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={poster}
                   alt={t.title}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
+                  width={140}
+                  height={200}
+                  loading="lazy"
+                  style={{ objectFit: 'cover', display: 'block' }}
                 />
               ) : (
                 <div
@@ -198,10 +187,10 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
                     height: '100%',
                     background:
                       pct === 100
-                        ? '#4caf50'
-                        : pct === 55
-                          ? '#ff9800'
-                          : '#2196f3',
+                        ? '#22c55e'          /* watched — green */
+                        : pct > 10
+                          ? 'var(--accent)'  /* watching — brand accent */
+                          : 'var(--accent3)', /* want to watch — blue */
                     width: `${pct}%`,
                     transition: 'width 0.2s ease',
                   }}

@@ -65,5 +65,5 @@
 2. **Fix ListsClient `any` types** — Run `npx supabase gen types typescript --project-id <id> > lib/database.types.ts`, then replace `any[]` in `ListsClient.tsx` with generated table row types.
 3. **Add Supabase public vars to Vercel Preview** — Vercel Dashboard → cinestream-app → Settings → Environment Variables → add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for **Preview** (all branches, not branch-scoped).
 
-**Status:** All three outstanding tasks complete, build clean, TypeScript clean. Ready to merge to master and deploy to production. ✅
+**Status:** All three outstanding tasks deployed (v5.6). Refactor pass (v5.7) approved and deploying — 15 lint errors eliminated, all remaining raw img tags migrated to next/image, type safety restored across ListsClient/for-you/SearchOverlay/trending/BadgeProvider/TrackerRow, CSP dev-mode eval() fix in proxy.ts. ✅
 

@@ -7,10 +7,12 @@ const PROTECTED = [
 ];
 
 function buildCsp(nonce: string): string {
+  // Turbopack dev mode requires eval() for HMR and source-map reconstruction.
+  // unsafe-eval is only injected in development; production CSP remains strict.
+  const isDev = process.env.NODE_ENV === 'development';
   return [
     `default-src 'self'`,
-    // Scripts: self + nonce only (no unsafe-inline, no unsafe-eval in production)
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     // Styles: self + inline (required by Next.js CSS-in-JS and inline styles)
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com`,

@@ -3,33 +3,23 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { TMDB_IMG, releaseYear } from '@/lib/utils';
-
-interface FeedItem {
-  id: string;
-  title: string;
-  poster_path: string | null;
-  media_type: 'movie' | 'tv';
-  vote_average: number;
-  release_date: string | null;
-  match_pct: number;
-  friend_count: number;
-  friend_avatars: string[];
-}
+import type { ForYouResult } from '@/lib/types';
 
 export default function ForYouPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [items, setItems] = useState<ForYouResult[] | null>(null);
   // Derive loading: true while auth is resolving, or once we have a user but no data yet
   const loading = authLoading || (!!user && items === null);
 
   useEffect(() => {
     if (!user) return;
     supabase.rpc('get_for_you_feed', { p_limit: 40 }).then(({ data }) => {
-      setItems((data ?? []) as FeedItem[]);
+      setItems((data ?? []) as ForYouResult[]);
     });
   }, [user]);
 
@@ -68,9 +58,14 @@ export default function ForYouPage() {
                 background: 'var(--bg-surface)', aspectRatio: '2/3',
               }}>
                 {item.poster_path ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`${TMDB_IMG}${item.poster_path}`} alt={item.title} loading="lazy"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <Image
+                    src={`${TMDB_IMG}${item.poster_path}`}
+                    alt={item.title}
+                    fill
+                    sizes="160px"
+                    loading="lazy"
+                    style={{ objectFit: 'cover' }}
+                  />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
                     {item.title}
@@ -86,8 +81,8 @@ export default function ForYouPage() {
                 {item.friend_count > 0 && item.friend_avatars?.length > 0 && (
                   <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex' }}>
                     {item.friend_avatars.slice(0, 2).map((av, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={av} alt="" style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--bg)', marginLeft: i > 0 ? -6 : 0 }} />
+                      <Image key={i} src={av} alt="" width={20} height={20}
+                        style={{ borderRadius: '50%', border: '1px solid var(--bg)', marginLeft: i > 0 ? -6 : 0 }} />
                     ))}
                   </div>
                 )}

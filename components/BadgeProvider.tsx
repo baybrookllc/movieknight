@@ -52,7 +52,7 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
         const next: BadgeCounts = {
           notifications: Number(notifRes.data ?? 0),
           messages: Number(msgRes.data ?? 0),
-          friendRequests: Number((friendRes.data as any)?.pending_requests ?? 0),
+          friendRequests: Number((friendRes.data as { pending_requests?: number } | null)?.pending_requests ?? 0),
         };
         setBadges(prev =>
           prev.notifications === next.notifications &&
@@ -69,6 +69,7 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchBadges(true);
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') fetchBadges();
