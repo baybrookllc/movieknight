@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { FUNCTIONS_URL, TMDB_IMG, getAuthHeader } from '@/lib/utils';
+import { TMDB_IMG } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import type { SearchResult } from '@/lib/types';
 
 export default function SearchOverlay() {
@@ -49,16 +50,15 @@ export default function SearchOverlay() {
     const gen = ++genRef.current;
     setLoading(true);
     try {
-      const headers = await getAuthHeader();
-      const [tmdbRes, semRes] = await Promise.all([
-        fetch(`${FUNCTIONS_URL}/tmdb-cache?action=search&query=${encodeURIComponent(q)}`, { headers }),
-        fetch(`${FUNCTIONS_URL}/semantic-search?query=${encodeURIComponent(q)}&limit=10`, { headers }),
+      const [tmdbInvoke, semInvoke] = await Promise.all([
+        supabase.functions.invoke(`tmdb-cache?action=search&query=${encodeURIComponent(q)}`, { method: 'GET' }),
+        supabase.functions.invoke(`semantic-search?query=${encodeURIComponent(q)}&limit=10`, { method: 'GET' }),
       ]);
       if (gen !== genRef.current) return;
-      const [tmdb, sem] = await Promise.all([
-        tmdbRes.json().catch(() => ({ results: [] })),
-        semRes.json().catch(() => ({ results: [] })),
-      ]);
+      const [tmdb, sem] = [
+        tmdbInvoke.data ?? { results: [] },
+        semInvoke.data ?? { results: [] },
+      ];
       const tmdbList: SearchResult[] = (tmdb.results ?? []).slice(0, 8);
       const semList: SearchResult[] = (sem.results ?? []).slice(0, 6);
       const seen = new Set(tmdbList.map(r => r.id));

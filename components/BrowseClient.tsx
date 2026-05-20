@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, startTransition } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FUNCTIONS_URL, getAuthHeader } from '@/lib/utils';
+
 import TitleCard from '@/components/TitleCard';
 import type { Title } from '@/lib/types';
 
@@ -191,19 +191,19 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
       let data: Title[] = [];
 
       if (query.trim()) {
-        const authHeaders = await getAuthHeader();
-        const [tmdbRes, semRes] = await Promise.all([
-          fetch(`${FUNCTIONS_URL}/tmdb-cache?action=search&query=${encodeURIComponent(query)}${filters.format ? `&type=${filters.format}` : ''}`,
-            { headers: authHeaders }),
-          fetch(`${FUNCTIONS_URL}/semantic-search?query=${encodeURIComponent(query)}&limit=20${filters.format ? `&media_type=${filters.format}` : ''}`,
-            { headers: authHeaders }),
+        const fmt = filters.format;
+        const [tmdbInvoke, semInvoke] = await Promise.all([
+          supabase.functions.invoke(
+            `tmdb-cache?action=search&query=${encodeURIComponent(query)}${fmt ? `&type=${fmt}` : ''}`,
+            { method: 'GET' }
+          ),
+          supabase.functions.invoke(
+            `semantic-search?query=${encodeURIComponent(query)}&limit=20${fmt ? `&media_type=${fmt}` : ''}`,
+            { method: 'GET' }
+          ),
         ]);
-        const [tmdb, sem] = await Promise.all([
-          tmdbRes.json().catch(() => ({ results: [] })),
-          semRes.json().catch(() => ({ results: [] })),
-        ]);
-        const tmdbList: Title[] = tmdb.results ?? [];
-        const semList: Title[] = sem.results ?? [];
+        const tmdbList: Title[] = tmdbInvoke.data?.results ?? [];
+        const semList: Title[] = semInvoke.data?.results ?? [];
         const seen = new Set(tmdbList.map(r => r.id));
         data = [...tmdbList, ...semList.filter(r => !seen.has(r.id))];
       } else {
