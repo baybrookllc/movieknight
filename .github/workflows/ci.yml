@@ -2,9 +2,9 @@ name: CI — Lint & Type Check
 
 on:
   push:
-    branches: [main, feat/nextjs-migration]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   lint-typecheck:
