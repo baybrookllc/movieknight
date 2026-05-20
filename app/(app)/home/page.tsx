@@ -34,9 +34,15 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
     const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
     for (const r of results) Object.assign(r, extrasMap[r.id] ?? {});
 
+    // Pick a random title from the top 3 matches so visitors see variety
+    // across page loads rather than always the same #1 result.
+    const heroIdx = Math.floor(Math.random() * Math.min(results.length, 3));
+    const heroResult = results[heroIdx];
+    const picksPool = results.filter(r => r.id !== heroResult.id);
+
     return {
-      match: results[0],
-      quickPicks: results.slice(1, 8).map(r => ({
+      match: heroResult,
+      quickPicks: picksPool.slice(0, 7).map(r => ({
         id: r.id,
         title: r.title,
         poster_path: r.poster_path,
