@@ -20,8 +20,8 @@ function buildCsp(nonce: string): string {
     `media-src 'self'`,
     // Frames: YouTube nocookie only
     `frame-src https://www.youtube-nocookie.com https://www.youtube.com`,
-    // Connections: Supabase only
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.dicebear.com https://image.tmdb.org`,
+    // Connections: Supabase, analytics, and image CDNs
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.dicebear.com https://image.tmdb.org https://api-gateway.umami.dev https://*.posthog.com https://us.i.posthog.com`,
     `base-uri 'self'`,
     `form-action 'self'`,
     `frame-ancestors 'none'`,
