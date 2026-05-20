@@ -6,34 +6,28 @@ import { createSupabasePublicClient } from '@/lib/supabase-server';
 const DEFAULT_QUERY = 'mind-blowing psychological mind-bending thriller';
 
 async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; quickPicks: QuickPick[] }> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !anonKey) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return { match: null, quickPicks: [] };
   }
 
   try {
-    const functionsUrl = `${supabaseUrl}/functions/v1`;
-    const res = await fetch(
-      `${functionsUrl}/semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12`,
-      {
-        headers: { Authorization: `Bearer ${anonKey}` },
-        next: { revalidate: 3600 }, // cache this fetch for 1 hour
-        signal: AbortSignal.timeout(6000), // don't block page render for more than 6s
-      }
+    // Single client instance — used for both the functions.invoke() call and the
+    // DB enrichment query below.  The SDK handles publishable-key → JWT auth
+    // internally, avoiding the 401 that raw fetch() gets with sb_publishable__ keys.
+    const db = createSupabasePublicClient();
+    const { data, error } = await db.functions.invoke(
+      `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12`,
+      { method: 'GET' }
     );
 
-    if (!res.ok) return { match: null, quickPicks: [] };
+    if (error || !data) return { match: null, quickPicks: [] };
 
-    const data = await res.json();
     const results: MatchTitle[] = data.results ?? [];
     if (!results.length) return { match: null, quickPicks: [] };
 
     // Enrich with backdrop_path and runtime — semantic-search doesn't return these
-    const supabase = createSupabasePublicClient();
     const ids = results.map(r => r.id);
-    const { data: extras } = await supabase
+    const { data: extras } = await db
       .from('titles')
       .select('id,backdrop_path,runtime')
       .in('id', ids);

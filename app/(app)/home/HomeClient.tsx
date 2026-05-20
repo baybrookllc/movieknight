@@ -87,14 +87,15 @@ function fmtRuntime(mins?: number) {
 
 async function semanticSearch(query: string, limit = 8): Promise<MatchTitle[]> {
   try {
-    const headers = await getAuthHeader();
-    const res = await fetch(
-      `${FUNCTIONS_URL}/semantic-search?query=${encodeURIComponent(query)}&limit=${limit}`,
-      { headers, signal: AbortSignal.timeout(8000) }
+    // Use supabase.functions.invoke() so the SDK handles publishable-key → JWT
+    // auth internally, avoiding the 401 we get when passing sb_publishable__ as
+    // a raw Bearer token in fetch().
+    const { data, error } = await supabase.functions.invoke(
+      `semantic-search?query=${encodeURIComponent(query)}&limit=${limit}`,
+      { method: 'GET', signal: AbortSignal.timeout(8000) }
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.results ?? [];
+    if (error) return [];
+    return data?.results ?? [];
   } catch { return []; }
 }
 
