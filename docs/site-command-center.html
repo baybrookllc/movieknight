@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>movieknight.ca — Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #0f0f1a;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            min-height: 100vh;
+        }
+
+        .command-center {
+            background: rgba(15, 15, 30, 0.95);
+            border: 1px solid rgba(100, 200, 255, 0.15);
+        }
+
+        .tab-button {
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+            color: #6b7280;
+        }
+
+        .tab-button.active {
+            color: #67e8f9;
+            border-bottom-color: #67e8f9;
+        }
+
+        .tab-button:hover:not(.active) {
+            color: #a5f3fc;
+        }
+
+        .module-card {
+            background: rgba(20, 20, 40, 0.8);
+            border: 1px solid rgba(100, 200, 255, 0.12);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #67e8f9, transparent);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .module-card:hover {
+            border-color: rgba(100, 200, 255, 0.35);
+            background: rgba(20, 20, 50, 0.95);
+            transform: translateY(-3px);
+            box-shadow: 0 16px 32px rgba(103, 232, 249, 0.08);
+        }
+
+        .module-card:hover::after { opacity: 1; }
+
+        .chip {
+            display: inline-block;
+            background: rgba(103, 232, 249, 0.08);
+            border: 1px solid rgba(103, 232, 249, 0.25);
+            color: #67e8f9;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .chip.green  { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.25); color: #4ade80; }
+        .chip.purple { background: rgba(192,132,252,0.08); border-color: rgba(192,132,252,0.25); color: #c084fc; }
+        .chip.yellow { background: rgba(250,204,21,0.08); border-color: rgba(250,204,21,0.25); color: #fbbf24; }
+
+        .dir-item {
+            background: rgba(20, 20, 40, 0.5);
+            border-left: 3px solid rgba(103, 232, 249, 0.15);
+            padding: 10px 14px;
+            margin: 6px 0;
+            border-radius: 4px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+            font-size: 12.5px;
+            transition: all 0.15s ease;
+        }
+
+        .dir-item:hover {
+            border-left-color: rgba(103, 232, 249, 0.5);
+            background: rgba(20, 20, 50, 0.8);
+        }
+
+        .dir-folder { color: #67e8f9; font-weight: 700; }
+        .dir-file   { color: #94a3b8; }
+        .dir-note   { display: block; color: #475569; font-size: 11px; margin-top: 3px; font-family: sans-serif; }
+
+        .flow-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }
+
+        .flow-node {
+            background: rgba(103, 232, 249, 0.08);
+            border: 1.5px solid rgba(103, 232, 249, 0.25);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #67e8f9;
+            text-align: center;
+            min-width: 130px;
+            flex-shrink: 0;
+        }
+
+        .flow-node.alt {
+            background: rgba(74,222,128,0.06);
+            border-color: rgba(74,222,128,0.2);
+            color: #4ade80;
+        }
+
+        .flow-arrow { color: #334155; font-size: 18px; flex-shrink: 0; }
+
+        .code-block {
+            background: rgba(0,0,0,0.45);
+            border: 1px solid rgba(103,232,249,0.08);
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-family: 'Menlo','Monaco','Consolas',monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #94a3b8;
+            margin: 12px 0;
+            overflow-x: auto;
+        }
+
+        .kw  { color: #67e8f9; }
+        .str { color: #86efac; }
+        .cmt { color: #475569; font-style: italic; }
+        .num { color: #fbbf24; }
+
+        .stack-card {
+            background: rgba(20,20,40,0.8);
+            border: 1px solid rgba(103,232,249,0.1);
+            border-radius: 10px;
+            padding: 18px;
+            transition: all 0.2s ease;
+        }
+
+        .stack-card:hover {
+            border-color: rgba(103,232,249,0.3);
+        }
+
+        .stack-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #67e8f9;
+            margin-bottom: 14px;
+        }
+
+        .tech-row {
+            background: rgba(0,0,0,0.25);
+            border-left: 2px solid rgba(103,232,249,0.12);
+            padding: 9px 12px;
+            margin: 6px 0;
+            border-radius: 3px;
+            font-size: 12.5px;
+        }
+
+        .tech-row strong { color: #e2e8f0; display: block; margin-bottom: 2px; }
+        .tech-row span   { color: #64748b; }
+
+        .ef-card {
+            background: rgba(20,20,40,0.7);
+            border: 1px solid rgba(103,232,249,0.1);
+            border-radius: 8px;
+            padding: 14px;
+            margin: 8px 0;
+        }
+
+        .ef-name { color: #67e8f9; font-family: monospace; font-weight: 700; display: block; margin-bottom: 6px; font-size: 13px; }
+
+        .stat-number { font-size: 28px; font-weight: 800; color: #67e8f9; line-height: 1; }
+        .stat-label  { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .perf-pill {
+            background: rgba(74,222,128,0.08);
+            border: 1px solid rgba(74,222,128,0.2);
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 12px;
+        }
+
+        .perf-before { color: #ef4444; text-decoration: line-through; }
+        .perf-after  { color: #4ade80; font-weight: 700; }
+
+        .route-badge {
+            display: inline-block;
+            background: rgba(20,20,40,0.8);
+            border: 1px solid rgba(103,232,249,0.12);
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-family: monospace;
+            font-size: 11.5px;
+            color: #94a3b8;
+            margin: 3px;
+            transition: all 0.15s ease;
+        }
+
+        .route-badge:hover {
+            border-color: rgba(103,232,249,0.35);
+            color: #e2e8f0;
+        }
+
+        .route-badge.api { color: #c084fc; border-color: rgba(192,132,252,0.15); }
+
+        @media (max-width: 768px) {
+            .flow-row { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top bar -->
+    <div style="background: linear-gradient(90deg, rgba(103,232,249,0.08), transparent); border-bottom: 1px solid rgba(103,232,249,0.15); padding: 18px 24px;">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-black" style="color: #67e8f9; letter-spacing: -0.5px;">movieknight.ca</h1>
+                <p class="text-sm mt-1" style="color: #64748b;">Architecture Command Center &mdash; real data, current as of v5.4 (May 18, 2026)</p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <span class="chip">v5.4</span>
+                <span class="chip green">Next.js 16.2.6</span>
+                <span class="chip green">React 19.2.4</span>
+                <span class="chip">Live on Vercel</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Tab nav -->
+        <div class="command-center rounded-xl mb-6">
+            <div class="flex flex-wrap border-b px-4" style="border-color: rgba(103,232,249,0.1);">
+                <button class="tab-button active px-5 py-4 text-sm font-semibold" data-tab="overview">🏗 Overview</button>
+                <button class="tab-button px-5 py-4 text-sm font-semibold" data-tab="stack">⚙️ Tech Stack</button>
+                <button class="tab-button px-5 py-4 text-sm font-semibold" data-tab="directory">📁 Directory</button>
+                <button class="tab-button px-5 py-4 text-sm font-semibold" data-tab="dataflow">🔄 Data Flow</button>
+                <button class="tab-button px-5 py-4 text-sm font-semibold" data-tab="database">🗄 Database</button>
+                <button class="tab-button px-5 py-4 text-sm font-semibold" data-tab="performance">⚡ Performance</button>
+            </div>
+
+            <div class="p-6">
+
+                <!-- ──────────────────── OVERVIEW ──────────────────── -->
+                <div id="overview" class="tab-content">
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="module-card text-center">
+                            <div class="stat-number">726+</div>
+                            <div class="stat-label">Titles seeded &amp; embedded</div>
+                        </div>
+                        <div class="module-card text-center">
+                            <div class="stat-number">8</div>
+                            <div class="stat-label">Edge functions deployed</div>
+                        </div>
+                        <div class="module-card text-center">
+                            <div class="stat-number">31</div>
+                            <div class="stat-label">Database migrations</div>
+                        </div>
+                        <div class="module-card text-center">
+                            <div class="stat-number">22+</div>
+                            <div class="stat-label">App routes</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+
+                        <div class="module-card">
+                            <span class="chip mb-3 block w-fit">Frontend</span>
+                            <h3 class="text-base font-bold mb-2" style="color: #a5f3fc;">Next.js 16.2.6 + React 19</h3>
+                            <p class="text-sm text-gray-400 mb-3">App Router with both authenticated <code style="color:#67e8f9;">(app)</code> and public <code style="color:#67e8f9;">(public)</code> layout groups. Deployed to Vercel with immutable CDN caching for all static assets.</p>
+                            <div class="text-xs text-gray-500 space-y-1">
+                                <div>• Zustand for client-state management</div>
+                                <div>• @supabase/ssr for server-component auth</div>
+                                <div>• @vercel/analytics + speed-insights wired in</div>
+                                <div>• Security headers set in vercel.json (HSTS, nosniff, DENY frames)</div>
+                            </div>
+                        </div>
+
+                        <div class="module-card">
+                            <span class="chip mb-3 block w-fit">Backend</span>
+                            <h3 class="text-base font-bold mb-2" style="color: #a5f3fc;">Supabase + Deno Edge Functions</h3>
+                            <p class="text-sm text-gray-400 mb-3">PostgreSQL 15 with pgvector for AI search. Row-level security enforces per-user data isolation. Eight Deno-runtime edge functions handle external integrations and compute.</p>
+                            <div class="text-xs text-gray-500 space-y-1">
+                                <div>• 17 confirmed tables, 31 migrations applied</div>
+                                <div>• RLS on all user-facing tables</div>
+                                <div>• 8 deployed edge functions</div>
+                                <div>• Centralised CORS utilities in <code>_shared/</code></div>
+                            </div>
+                        </div>
+
+                        <div class="module-card">
+                            <span class="chip green mb-3 block w-fit">AI / Search</span>
+                            <h3 class="text-base font-bold mb-2" style="color: #a5f3fc;">OpenAI Embeddings + pgvector HNSW</h3>
+                            <p class="text-sm text-gray-400 mb-3">Every title is vectorised with <code>text-embedding-3-small</code> (1 536 dimensions). Semantic search uses an HNSW index for sub-second approximate nearest-neighbour lookups. 8 s timeout with keyword fallback prevents timeouts reaching the client.</p>
+                            <div class="text-xs text-gray-500 space-y-1">
+                                <div>• Measured search time: ~740 ms end-to-end</div>
+                                <div>• In-app Claude AI assistant via Anthropic SDK 0.96</div>
+                                <div>• <code>/api/claude/ask</code> supports why_watch, similar, taste, free modes</div>
+                            </div>
+                        </div>
+
+                        <div class="module-card">
+                            <span class="chip purple mb-3 block w-fit">External APIs</span>
+                            <h3 class="text-base font-bold mb-2" style="color: #a5f3fc;">TMDB · DTDD · Anthropic</h3>
+                            <p class="text-sm text-gray-400 mb-3">The app never calls TMDB directly from the client — all requests are routed through the <code>tmdb-cache</code> edge function which caches responses for 7 days (30 days for titles older than 2 years).</p>
+                            <div class="text-xs text-gray-500 space-y-1">
+                                <div>• TMDB: movie + TV metadata, posters, episodes</div>
+                                <div>• DTDD: 20+ trigger-warning topics, 30-day cache, 70 % threshold</div>
+                                <div>• Anthropic Claude: in-app AI chat assistant</div>
+                            </div>
+                        </div>
+
+                        <div class="module-card" style="grid-column: 1 / -1;">
+                            <span class="chip yellow mb-3 block w-fit">Analytics</span>
+                            <h3 class="text-base font-bold mb-2" style="color: #a5f3fc;">Dual Analytics Stack — Umami + PostHog</h3>
+                            <p class="text-sm text-gray-400 mb-3">Two complementary analytics tools run side-by-side. <strong style="color:#e2e8f0;">Umami</strong> captures lightweight, cookieless traffic data with no personal data stored — ideal for compliance and top-level dashboards. <strong style="color:#e2e8f0;">PostHog</strong> provides deep product analytics: custom event capture, user funnels, session recordings, and feature flags.</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                <div class="text-xs space-y-1" style="background:rgba(250,204,21,0.05);border:1px solid rgba(250,204,21,0.15);border-radius:6px;padding:10px;">
+                                    <div class="font-bold mb-1" style="color:#fbbf24;">Umami — Traffic</div>
+                                    <div>• Cookieless by design — no consent banner needed</div>
+                                    <div>• GDPR &amp; PECR compliant out of the box</div>
+                                    <div>• Injected via Next.js <code>&lt;Script strategy="lazyOnload"&gt;</code></div>
+                                    <div>• Controlled by <code>NEXT_PUBLIC_UMAMI_WEBSITE_ID</code> + <code>NEXT_PUBLIC_UMAMI_URL</code></div>
+                                    <div>• Script only loads when both env vars are set</div>
+                                </div>
+                                <div class="text-xs space-y-1" style="background:rgba(192,132,252,0.05);border:1px solid rgba(192,132,252,0.15);border-radius:6px;padding:10px;">
+                                    <div class="font-bold mb-1" style="color:#c084fc;">PostHog — Product Events</div>
+                                    <div>• Deep event tracking: search queries, watch actions, list changes</div>
+                                    <div>• Manual <code>$pageview</code> capture — compatible with App Router SPA navigation</div>
+                                    <div>• <code>person_profiles: 'identified_only'</code> — no anonymous profiles stored</div>
+                                    <div>• Provider wraps entire app in <code>app/providers.tsx</code></div>
+                                    <div>• Controlled by <code>NEXT_PUBLIC_POSTHOG_KEY</code> + <code>NEXT_PUBLIC_POSTHOG_HOST</code></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance snapshot -->
+                    <div class="rounded-lg p-4" style="background: rgba(74,222,128,0.05); border: 1px solid rgba(74,222,128,0.15);">
+                        <div class="text-xs font-bold uppercase tracking-widest mb-3" style="color: #4ade80;">v5.4 Measured Performance (production)</div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="perf-pill">
+                                <code style="color:#67e8f9;">semantic-search</code><br>
+                                <span class="perf-before">27.6 s timeout</span> → <span class="perf-after">~740 ms</span>
+                            </div>
+                            <div class="perf-pill">
+                                <code style="color:#67e8f9;">get_pending_requests</code><br>
+                                <span class="perf-before">12–13 s</span> → <span class="perf-after">~205 ms</span>
+                            </div>
+                            <div class="perf-pill">
+                                <code style="color:#67e8f9;">friend activity RPCs</code><br>
+                                <span class="perf-before">12–13 s</span> → <span class="perf-after">&lt;500 ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ──────────────────── TECH STACK ──────────────────── -->
+                <div id="stack" class="tab-content hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                        <div class="stack-card">
+                            <div class="stack-title">🎨 Frontend</div>
+                            <div class="tech-row"><strong>Framework</strong><span>Next.js 16.2.6 — App Router</span></div>
+                            <div class="tech-row"><strong>UI Library</strong><span>React 19.2.4 + react-dom 19.2.4</span></div>
+                            <div class="tech-row"><strong>Styling</strong><span>Tailwind CSS (utility-first)</span></div>
+                            <div class="tech-row"><strong>State</strong><span>Zustand ^4.4.1</span></div>
+                            <div class="tech-row"><strong>Auth helpers</strong><span>@supabase/ssr ^0.10.3</span></div>
+                            <div class="tech-row"><strong>DB client</strong><span>@supabase/supabase-js ^2.45.4</span></div>
+                        </div>
+
+                        <div class="stack-card">
+                            <div class="stack-title">⚙️ Backend</div>
+                            <div class="tech-row"><strong>Database</strong><span>PostgreSQL 15 + pgvector extension</span></div>
+                            <div class="tech-row"><strong>Auth</strong><span>Supabase Auth (JWT, email/password)</span></div>
+                            <div class="tech-row"><strong>Edge compute</strong><span>Deno runtime — 8 functions</span></div>
+                            <div class="tech-row"><strong>Security</strong><span>RLS on all user tables</span></div>
+                            <div class="tech-row"><strong>CORS</strong><span>Centralised via <code>_shared/cors-utils.ts</code></span></div>
+                            <div class="tech-row"><strong>Migrations</strong><span>31 applied migrations</span></div>
+                        </div>
+
+                        <div class="stack-card">
+                            <div class="stack-title">🤖 AI / Search</div>
+                            <div class="tech-row"><strong>Embeddings</strong><span>OpenAI text-embedding-3-small (1 536 dims)</span></div>
+                            <div class="tech-row"><strong>Vector index</strong><span>pgvector HNSW (approximate NN)</span></div>
+                            <div class="tech-row"><strong>AI chat</strong><span>@anthropic-ai/sdk ^0.96.0</span></div>
+                            <div class="tech-row"><strong>Fallback</strong><span>8 s OpenAI timeout → keyword search</span></div>
+                            <div class="tech-row"><strong>Rate limiting</strong><span>In-memory sliding window (60 req/min)</span></div>
+                        </div>
+
+                        <div class="stack-card">
+                            <div class="stack-title">📊 Data Sources</div>
+                            <div class="tech-row"><strong>Movie/TV</strong><span>TMDB API — all calls via tmdb-cache proxy</span></div>
+                            <div class="tech-row"><strong>Content warnings</strong><span>DoesTheDogDie.com (20+ topics)</span></div>
+                            <div class="tech-row"><strong>TMDB cache TTL</strong><span>7 days (recent) / 30 days (old titles)</span></div>
+                            <div class="tech-row"><strong>DTDD cache TTL</strong><span>30 days, 70 % confidence threshold</span></div>
+                        </div>
+
+                        <div class="stack-card">
+                            <div class="stack-title">🚀 Deployment</div>
+                            <div class="tech-row"><strong>Hosting</strong><span>Vercel (Next.js-native)</span></div>
+                            <div class="tech-row"><strong>DB hosting</strong><span>Supabase Cloud</span></div>
+                            <div class="tech-row"><strong>Security headers</strong><span>HSTS, X-Frame-Options: DENY, nosniff, CSP</span></div>
+                            <div class="tech-row"><strong>Static cache</strong><span><code>/_next/static/</code> — immutable, 1 year</span></div>
+                            <div class="tech-row"><strong>Build</strong><span><code>npm run build</code> → <code>.next</code></span></div>
+                        </div>
+
+                        <div class="stack-card">
+                            <div class="stack-title">🛠 Tooling</div>
+                            <div class="tech-row"><strong>Language</strong><span>TypeScript ^5 (strict)</span></div>
+                            <div class="tech-row"><strong>Linting</strong><span>ESLint ^9 + eslint-config-next 16.2.6</span></div>
+                            <div class="tech-row"><strong>Analytics</strong><span>@vercel/analytics ^2.0.1</span></div>
+                            <div class="tech-row"><strong>Perf monitoring</strong><span>@vercel/speed-insights ^2.0.0</span></div>
+                            <div class="tech-row"><strong>Package manager</strong><span>npm (postcss override: ^8.5.14)</span></div>
+                        </div>
+
+                        <div class="stack-card" style="border-color: rgba(250,204,21,0.2);">
+                            <div class="stack-title" style="color:#fbbf24;">📈 Analytics</div>
+                            <div class="tech-row" style="border-left-color: rgba(250,204,21,0.3);">
+                                <strong>Umami (traffic)</strong>
+                                <span>Cookieless, GDPR-compliant — injected via <code>&lt;Script strategy="lazyOnload"&gt;</code> in root layout. Only loads when <code>NEXT_PUBLIC_UMAMI_WEBSITE_ID</code> and <code>NEXT_PUBLIC_UMAMI_URL</code> are set.</span>
+                            </div>
+                            <div class="tech-row" style="border-left-color: rgba(192,132,252,0.3);">
+                                <strong>PostHog (events)</strong>
+                                <span>posthog-js 1.374.0 — <code>PHProvider</code> wraps the full app tree in <code>providers.tsx</code>. Manual <code>$pageview</code> fires on every route change via <code>usePathname</code> — required for App Router SPA navigation.</span>
+                            </div>
+                            <div class="tech-row" style="border-left-color: rgba(103,232,249,0.2);">
+                                <strong>Vercel Analytics</strong>
+                                <span>@vercel/analytics ^2.0.1 — zero-bundle real-user monitoring, always active</span>
+                            </div>
+                            <div class="tech-row" style="border-left-color: rgba(103,232,249,0.2);">
+                                <strong>Speed Insights</strong>
+                                <span>@vercel/speed-insights ^2.0.0 — Core Web Vitals reporting, always active</span>
+                            </div>
+                            <div class="tech-row" style="border-left-color: rgba(103,232,249,0.2);">
+                                <strong>PostHog config</strong>
+                                <span><code>person_profiles: 'identified_only'</code> · <code>capture_pageview: false</code> (manual) · <code>capture_pageleave: true</code></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edge functions list -->
+                    <h3 class="text-sm font-bold uppercase tracking-wider mt-8 mb-3" style="color: #67e8f9;">8 Deployed Edge Functions</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="ef-card"><span class="ef-name">semantic-search</span><span class="text-xs text-gray-400">AI mood/keyword search. Calls OpenAI for embedding, runs pgvector ANN query. 8 s timeout with keyword fallback.</span></div>
+                        <div class="ef-card"><span class="ef-name">generate-embedding</span><span class="text-xs text-gray-400">Batch or per-title embedding via OpenAI. Supports backfill &amp; DB webhook trigger. Rate-limited (20 req/min for anon).</span></div>
+                        <div class="ef-card"><span class="ef-name">tmdb-cache</span><span class="text-xs text-gray-400">Proxy for all TMDB API calls. Actions: search, detail, discover, genres-sync, watch-providers. Tiered TTL caching.</span></div>
+                        <div class="ef-card"><span class="ef-name">tv-seasons</span><span class="text-xs text-gray-400">Fetches season/episode metadata from TMDB. Returns season list, episode names, and counts.</span></div>
+                        <div class="ef-card"><span class="ef-name">dtdd-fetch</span><span class="text-xs text-gray-400">Caching proxy for DoesTheDogDie.com. Applies 70 % confidence filter, stores in <code>dtdd_cache</code> for 30 days.</span></div>
+                        <div class="ef-card"><span class="ef-name">delete-account</span><span class="text-xs text-gray-400">Hard-deletes a user account including cascaded watch history, lists, and profile data.</span></div>
+                        <div class="ef-card"><span class="ef-name">tv-auth</span><span class="text-xs text-gray-400">Device-code flow for TV/WebOS app authentication. Issues short-lived codes stored in <code>device_auth_codes</code>.</span></div>
+                        <div class="ef-card"><span class="ef-name">notify-watchlist</span><span class="text-xs text-gray-400">Pushes notifications when friends add or update titles on shared watchlists.</span></div>
+                    </div>
+                </div>
+
+                <!-- ──────────────────── DIRECTORY ──────────────────── -->
+                <div id="directory" class="tab-content hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">Next.js App Router (/app)</h3>
+
+                            <div class="dir-item"><span class="dir-folder">📂 app/(app)/</span><span class="dir-note">Authenticated layout — requires valid Supabase session</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ home/</span><span class="dir-note">Personalised "for-you" feed</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ browse/</span><span class="dir-note">9-filter advanced browse (genre, year, runtime, rating…)</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ mood/</span><span class="dir-note">Semantic/AI search interface</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ for-you/</span><span class="dir-note">Recommendation feed powered by get_for_you_feed RPC</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ trending/</span><span class="dir-note">Popularity-ranked title list</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ calendar/</span><span class="dir-note">TV episode release calendar</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ friends/</span><span class="dir-note">Friend list, activity, requests</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ messages/</span><span class="dir-note">Direct messaging (send_message RPC)</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ notifications/</span><span class="dir-note">Friend requests &amp; activity alerts</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ lists/</span><span class="dir-note">User watchlists &amp; community lists</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ list/[id]/</span><span class="dir-note">Single list detail (dynamic route)</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ profile/</span><span class="dir-note">Your own profile &amp; genre DNA</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">└─ [titleId]/</span><span class="dir-note">Title detail page (dynamic route)</span></div>
+
+                            <div class="dir-item mt-3"><span class="dir-folder">📂 app/(public)/</span><span class="dir-note">Unauthenticated layout</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ login/</span><span class="dir-note">Email + password sign-in</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">└─ signup/</span><span class="dir-note">New account registration</span></div>
+
+                            <div class="dir-item mt-3"><span class="dir-folder">📂 app/api/</span><span class="dir-note">Next.js API routes (serverless)</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file" style="color:#c084fc;">├─ claude/ask/</span><span class="dir-note">Claude AI assistant — modes: why_watch, similar, taste, free</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file" style="color:#c084fc;">├─ debug/ingest/</span><span class="dir-note">Client debug log ingest endpoint</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file" style="color:#c084fc;">└─ warmup/</span><span class="dir-note">Vercel function warmup ping</span></div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">Backend &amp; Config</h3>
+
+                            <div class="dir-item"><span class="dir-folder">📂 supabase/functions/</span><span class="dir-note">8 Deno edge functions + shared utilities</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ _shared/cors.ts</span><span class="dir-note">Base CORS config</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ _shared/cors-utils.ts</span><span class="dir-note">Centralised CORS helpers (added v5.3)</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ semantic-search/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ generate-embedding/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ tmdb-cache/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ tv-seasons/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ dtdd-fetch/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ delete-account/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">├─ tv-auth/</span></div>
+                            <div class="dir-item" style="margin-left:18px;"><span class="dir-file">└─ notify-watchlist/</span></div>
+
+                            <div class="dir-item mt-3"><span class="dir-folder">📂 supabase/migrations/</span><span class="dir-note">31 SQL migrations — schema history from Apr 16 → May 18, 2026</span></div>
+
+                            <div class="dir-item mt-3"><span class="dir-folder">📂 js/</span><span class="dir-note">Legacy HTML prototype modules (CineStream.html — not the Next.js app)</span></div>
+
+                            <div class="dir-item mt-3"><span class="dir-folder">📂 docs/</span><span class="dir-note">Architecture docs: database.md, edge-functions.md, ai-feature.md, mcp-stack.md</span></div>
+
+                            <h3 class="text-sm font-bold uppercase tracking-wider mb-3 mt-6" style="color: #67e8f9;">Key Config Files</h3>
+                            <div class="dir-item"><span class="dir-file">package.json</span><span class="dir-note">Dependencies + npm scripts (dev, build, start, lint)</span></div>
+                            <div class="dir-item"><span class="dir-file">vercel.json</span><span class="dir-note">Security headers, asset cache rules, framework = nextjs</span></div>
+                            <div class="dir-item"><span class="dir-file">tsconfig.json</span><span class="dir-note">TypeScript strict config</span></div>
+                            <div class="dir-item"><span class="dir-file">CLAUDE.md</span><span class="dir-note">Agent instructions, schema source of truth, build status</span></div>
+                            <div class="dir-item"><span class="dir-file">CHANGELOG.md</span><span class="dir-note">Full version history v1.0 (Apr 16) → v5.4 (May 18)</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ──────────────────── DATA FLOW ──────────────────── -->
+                <div id="dataflow" class="tab-content hidden">
+
+                    <!-- Semantic search -->
+                    <div class="mb-8 pl-5 py-4" style="border-left: 3px solid rgba(103,232,249,0.3);">
+                        <h4 class="font-bold mb-1" style="color:#a5f3fc;">1. Semantic Search — "find movies about friendship in space"</h4>
+                        <p class="text-xs text-gray-500 mb-4">The user types a natural-language query. The system understands <em>meaning</em>, not just keywords.</p>
+
+                        <div class="flow-row">
+                            <div class="flow-node">Browser<br><span style="font-size:10px;color:#475569;">React page</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">Edge Function<br><span style="font-size:10px;color:#475569;">semantic-search</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">OpenAI API<br><span style="font-size:10px;color:#475569;">text-embedding-3-small</span></div>
+                        </div>
+                        <div class="flow-row">
+                            <div class="flow-node alt">pgvector HNSW<br><span style="font-size:10px;color:#475569;">match_titles() RPC</span></div>
+                            <div class="flow-arrow">←</div>
+                            <div class="flow-node">1 536-dim vector<br><span style="font-size:10px;color:#475569;">similarity threshold</span></div>
+                            <div class="flow-arrow">←</div>
+                            <div class="flow-node alt">Top results<br><span style="font-size:10px;color:#475569;">~740 ms total</span></div>
+                        </div>
+
+                        <div class="code-block">
+<span class="cmt">// edge function: semantic-search (simplified)</span>
+<span class="kw">const</span> embedding = <span class="kw">await</span> openai.embeddings.create({
+  model: <span class="str">'text-embedding-3-small'</span>,
+  input: query,                          <span class="cmt">// "friendship in space"</span>
+})
+<span class="kw">const</span> { data } = <span class="kw">await</span> supabase.rpc(<span class="str">'match_titles'</span>, {
+  query_embedding: embedding.data[<span class="num">0</span>].embedding,
+  match_threshold: <span class="num">0.5</span>,
+  match_count: <span class="num">10</span>,
+  p_media_type: mediaType,              <span class="cmt">// server-side filter</span>
+})
+                        </div>
+                        <div class="text-xs p-3 rounded" style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);color:#fca5a5;">
+                            <strong>Fallback:</strong> If OpenAI takes &gt;8 s, the function automatically falls back to a keyword ILIKE query — the user always gets results, never a 500 error.
+                        </div>
+                    </div>
+
+                    <!-- Watch tracking -->
+                    <div class="mb-8 pl-5 py-4" style="border-left: 3px solid rgba(74,222,128,0.3);">
+                        <h4 class="font-bold mb-1" style="color:#a5f3fc;">2. Watch History — marking a title "Watched"</h4>
+                        <p class="text-xs text-gray-500 mb-4">Status changes are upserted directly from the client. The user's ID is injected server-side (RLS) — never trusted from the client.</p>
+
+                        <div class="flow-row">
+                            <div class="flow-node">User taps status<br><span style="font-size:10px;color:#475569;">Want / Watching / Watched / Dropped</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">Optimistic UI update<br><span style="font-size:10px;color:#475569;">instant visual feedback</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">UPSERT watch_history<br><span style="font-size:10px;color:#475569;">via supabase-js</span></div>
+                        </div>
+                        <div class="flow-row">
+                            <div class="flow-node alt">RLS checks auth.uid()<br><span style="font-size:10px;color:#475569;">rejects cross-user writes</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node alt">Row stored<br><span style="font-size:10px;color:#475569;">user_id = DEFAULT auth.uid()</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node alt">Revert on error<br><span style="font-size:10px;color:#475569;">optimistic rollback</span></div>
+                        </div>
+
+                        <div class="code-block">
+<span class="cmt">// user_id is intentionally NOT in the payload — set by DEFAULT auth.uid()</span>
+<span class="kw">await</span> supabase
+  .from(<span class="str">'watch_history'</span>)
+  .upsert({ title_id: <span class="str">'movie:550'</span>, status: <span class="str">'watched'</span> }, {
+    onConflict: <span class="str">'user_id,title_id'</span>,
+  })
+                        </div>
+                    </div>
+
+                    <!-- TMDB caching -->
+                    <div class="mb-8 pl-5 py-4" style="border-left: 3px solid rgba(192,132,252,0.3);">
+                        <h4 class="font-bold mb-1" style="color:#a5f3fc;">3. TMDB Content Fetch &amp; Caching</h4>
+                        <p class="text-xs text-gray-500 mb-4">The app never calls TMDB directly. All requests go through the tmdb-cache edge function, which stores results in Postgres to avoid redundant API calls.</p>
+
+                        <div class="flow-row">
+                            <div class="flow-node">Client requests detail<br><span style="font-size:10px;color:#475569;">tmdb-cache?action=detail</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">Cache check<br><span style="font-size:10px;color:#475569;">titles table in DB</span></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 my-3 max-w-lg">
+                            <div class="p-3 rounded text-xs" style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);">
+                                <strong style="color:#4ade80;">Fresh cache (&lt;7 days)</strong><br>
+                                Return from DB — ~1 ms
+                            </div>
+                            <div class="p-3 rounded text-xs" style="background:rgba(250,204,21,0.06);border:1px solid rgba(250,204,21,0.15);">
+                                <strong style="color:#fbbf24;">Stale / missing</strong><br>
+                                Re-fetch TMDB → re-cache → return
+                            </div>
+                        </div>
+
+                        <div class="text-xs text-gray-500 mt-2">Tiered TTL: 7-day for recent titles; 30-day for titles released &gt;2 years ago.</div>
+                    </div>
+
+                    <!-- Real-time -->
+                    <div class="pl-5 py-4" style="border-left: 3px solid rgba(251,191,36,0.3);">
+                        <h4 class="font-bold mb-1" style="color:#a5f3fc;">4. Real-time Friend Activity (WebSocket)</h4>
+                        <p class="text-xs text-gray-500 mb-4">Supabase Realtime broadcasts Postgres row changes over a persistent WebSocket. Clients subscribe and update UI instantly.</p>
+
+                        <div class="flow-row">
+                            <div class="flow-node">Friend marks a title<br><span style="font-size:10px;color:#475569;">INSERT watch_history</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node">Postgres triggers<br><span style="font-size:10px;color:#475569;">Realtime broadcast</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node alt">Your client receives<br><span style="font-size:10px;color:#475569;">WebSocket push</span></div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-node alt">UI updates live<br><span style="font-size:10px;color:#475569;">no page refresh</span></div>
+                        </div>
+
+                        <div class="code-block">
+supabase
+  .<span class="kw">channel</span>(<span class="str">'friend-activity'</span>)
+  .<span class="kw">on</span>(<span class="str">'postgres_changes'</span>, { <span class="kw">event</span>: <span class="str">'INSERT'</span>, schema: <span class="str">'public'</span>, table: <span class="str">'watch_history'</span> },
+    payload <span class="kw">=></span> updateFeedUI(payload.new)
+  )
+  .<span class="kw">subscribe</span>()
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ──────────────────── DATABASE ──────────────────── -->
+                <div id="database" class="tab-content hidden">
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">17 Database Tables</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="tech-row"><strong>titles</strong><span>Catalog: id (movie:ID / tv:ID), tmdb_id, title, release_date, vote_average, poster_path, runtime, certification_ca, original_language, origin_country</span></div>
+                                <div class="tech-row"><strong>title_embeddings</strong><span>1 536-dim pgvector per title; linked to titles.id via title_id FK; HNSW index</span></div>
+                                <div class="tech-row"><strong>title_genres</strong><span>Many-to-many: title_id ↔ genre_id; unique constraint; covering index</span></div>
+                                <div class="tech-row"><strong>title_streaming_platforms</strong><span>Streaming availability (added May 15, 2026 — currently unpopulated)</span></div>
+                                <div class="tech-row"><strong>genres</strong><span>27 genres synced from TMDB</span></div>
+                                <div class="tech-row"><strong>watch_history</strong><span>status (want_to_watch / watching / watched / dropped), rating (int ×2 for half-stars), episode tracking; RLS: owner only</span></div>
+                                <div class="tech-row"><strong>profiles</strong><span>display_name, username, avatar_url, tw_enabled preference; RLS: public read, owner write</span></div>
+                                <div class="tech-row"><strong>follows</strong><span>Friend relationships (follower_id → following_id)</span></div>
+                                <div class="tech-row"><strong>friend_requests</strong><span>sender_id, receiver_id, status; composite indexes on (sender_id,status) and (receiver_id,status) — 60× speedup</span></div>
+                                <div class="tech-row"><strong>messages</strong><span>Direct messaging between users</span></div>
+                                <div class="tech-row"><strong>custom_lists</strong><span>owner_id, title (not name), description, is_public; RLS: owner + members</span></div>
+                                <div class="tech-row"><strong>list_items</strong><span>list_id, title_id, added_by, added_at (not created_at)</span></div>
+                                <div class="tech-row"><strong>list_members</strong><span>list_id, user_id, role (editor/viewer); no id or created_at columns</span></div>
+                                <div class="tech-row"><strong>community_ratings</strong><span>1–5 star ratings on public lists; unique (list_id, user_id)</span></div>
+                                <div class="tech-row"><strong>device_auth_codes</strong><span>TV/WebOS device authentication codes (short-lived)</span></div>
+                                <div class="tech-row"><strong>dtdd_cache</strong><span>Trigger warning results from DTDD, cached 30 days per title</span></div>
+                                <div class="tech-row"><strong>user_trigger_prefs</strong><span>Per-user trigger warning topic preferences (hide / flag)</span></div>
+                                <div class="tech-row"><strong>debug_logs</strong><span>Client-side console, error, network, and performance logs</span></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">RPC Functions</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="ef-card"><span class="ef-name">match_titles(query_embedding, match_threshold, match_count, p_media_type)</span><span class="text-xs text-gray-400">Returns top-N titles by vector similarity. Used by semantic-search edge function.</span></div>
+                                <div class="ef-card"><span class="ef-name">browse_titles(filters…)</span><span class="text-xs text-gray-400">9-filter paginated browse. Replaced REST + client-side filtering with a single server-side RPC.</span></div>
+                                <div class="ef-card"><span class="ef-name">get_for_you_feed(user_id)</span><span class="text-xs text-gray-400">Personalised recommendations using CTE-based query optimised in May 15–16 migrations.</span></div>
+                                <div class="ef-card"><span class="ef-name">get_pending_requests / get_sent_requests</span><span class="text-xs text-gray-400">Friend request inbox/outbox. Optimised in v5.4 — down from 12–13 s → ~205 ms via composite indexes.</span></div>
+                                <div class="ef-card"><span class="ef-name">get_friends(user_id)</span><span class="text-xs text-gray-400">Returns confirmed friend list for a given user.</span></div>
+                                <div class="ef-card"><span class="ef-name">find_user_by_username(username)</span><span class="text-xs text-gray-400">Username lookup. EXECUTE revoked from anon role (security hardening Sprint 1).</span></div>
+                                <div class="ef-card"><span class="ef-name">send_message(…)</span><span class="text-xs text-gray-400">Direct message insert with recipient lookup.</span></div>
+                                <div class="ef-card"><span class="ef-name">get_community_lists(sort, limit)</span><span class="text-xs text-gray-400">Returns public watchlists with owner info and rating aggregates.</span></div>
+                                <div class="ef-card"><span class="ef-name">titles_missing_embeddings(row_limit)</span><span class="text-xs text-gray-400">Returns title IDs that have no embedding yet — used by generate-embedding backfill.</span></div>
+                            </div>
+
+                            <h3 class="text-sm font-bold uppercase tracking-wider mt-6 mb-3" style="color: #67e8f9;">Key Indexes (v5.3 + v5.4)</h3>
+                            <div class="code-block" style="font-size:11px;">
+<span class="cmt">-- v5.4: 60× speedup on friend request queries</span>
+idx_friend_requests_sender   ON friend_requests(sender_id, status)
+idx_friend_requests_receiver ON friend_requests(receiver_id, status)
+
+<span class="cmt">-- v5.3: core performance indexes</span>
+idx_watch_history_user_id
+idx_watch_history_user_episode
+idx_title_genres_genre_title   <span class="cmt">-- covering</span>
+idx_titles_popularity
+idx_titles_feed_eligible       <span class="cmt">-- partial index</span>
+idx_dtdd_cache_title_id
+idx_list_items_list_date
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RLS summary -->
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">Row-Level Security Summary</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="p-3 rounded text-xs" style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);">
+                            <strong style="color:#fca5a5;">Private (owner only)</strong><br><br>
+                            watch_history, messages, user_trigger_prefs, device_auth_codes
+                        </div>
+                        <div class="p-3 rounded text-xs" style="background:rgba(250,204,21,0.05);border:1px solid rgba(250,204,21,0.15);">
+                            <strong style="color:#fde68a;">Semi-public</strong><br><br>
+                            custom_lists (owner + members read; public = all read), list_items (owner + editors write), profiles (public read, owner write)
+                        </div>
+                        <div class="p-3 rounded text-xs" style="background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.15);">
+                            <strong style="color:#86efac;">Public read</strong><br><br>
+                            titles, genres, title_genres, title_embeddings, community_ratings
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ──────────────────── PERFORMANCE ──────────────────── -->
+                <div id="performance" class="tab-content hidden">
+
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-4" style="color: #67e8f9;">v5.4 Performance Sprint — Verified Production Numbers</h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        <div class="module-card text-center">
+                            <div class="stat-number" style="color:#4ade80;">740ms</div>
+                            <div class="stat-label" style="color:#4ade80;">semantic-search</div>
+                            <div class="text-xs mt-2 text-gray-500 line-through">was 27.6 s timeout</div>
+                        </div>
+                        <div class="module-card text-center">
+                            <div class="stat-number" style="color:#4ade80;">205ms</div>
+                            <div class="stat-label" style="color:#4ade80;">get_pending_requests</div>
+                            <div class="text-xs mt-2 text-gray-500 line-through">was 12–13 s</div>
+                        </div>
+                        <div class="module-card text-center">
+                            <div class="stat-number" style="color:#4ade80;">&lt;500ms</div>
+                            <div class="stat-label" style="color:#4ade80;">friend activity RPCs</div>
+                            <div class="text-xs mt-2 text-gray-500 line-through">was 12–13 s</div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-3" style="color: #67e8f9;">What Changed &amp; Why</h3>
+                    <div class="space-y-3">
+                        <div class="p-4 rounded-lg text-sm" style="background:rgba(20,20,40,0.7);border:1px solid rgba(103,232,249,0.1);">
+                            <div class="font-bold mb-1" style="color:#a5f3fc;">1. Composite indexes on friend_requests</div>
+                            <p class="text-gray-400 text-xs">Added <code>(sender_id, status)</code> and <code>(receiver_id, status)</code> indexes. The RPC was doing full sequential scans on a growing table. 60× speedup confirmed.</p>
+                        </div>
+                        <div class="p-4 rounded-lg text-sm" style="background:rgba(20,20,40,0.7);border:1px solid rgba(103,232,249,0.1);">
+                            <div class="font-bold mb-1" style="color:#a5f3fc;">2. Semantic-search timeout handler</div>
+                            <p class="text-gray-400 text-xs">OpenAI embedding calls occasionally exceeded Supabase's default timeout. Added explicit 8-second abort controller with automatic keyword ILIKE fallback — eliminates all 500 errors reaching the client.</p>
+                        </div>
+                        <div class="p-4 rounded-lg text-sm" style="background:rgba(20,20,40,0.7);border:1px solid rgba(103,232,249,0.1);">
+                            <div class="font-bold mb-1" style="color:#a5f3fc;">3. Sequential RPC batching (connection pool relief)</div>
+                            <p class="text-gray-400 text-xs">Three components were firing multiple concurrent RPC calls via <code>Promise.all()</code>, saturating the Supabase connection pool. Calls are now sequential in BadgeProvider, FriendsClient, and ProfilePage.</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-sm font-bold uppercase tracking-wider mt-8 mb-3" style="color: #67e8f9;">Caching Strategy</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="stack-card">
+                            <div class="stack-title">📦 Static Asset Caching (Vercel)</div>
+                            <div class="tech-row"><strong><code>/_next/static/*</code></strong><span>Cache-Control: public, max-age=31536000, immutable</span></div>
+                            <div class="tech-row"><strong><code>/public/*</code></strong><span>Cache-Control: public, max-age=31536000, immutable</span></div>
+                        </div>
+                        <div class="stack-card">
+                            <div class="stack-title">🗄 Database / Edge Caching</div>
+                            <div class="tech-row"><strong>TMDB (recent titles)</strong><span>7-day TTL in titles table</span></div>
+                            <div class="tech-row"><strong>TMDB (older titles)</strong><span>30-day TTL (released &gt;2 years ago)</span></div>
+                            <div class="tech-row"><strong>DTDD warnings</strong><span>30-day TTL in dtdd_cache table</span></div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-sm font-bold uppercase tracking-wider mt-8 mb-3" style="color: #67e8f9;">Next Monitoring Actions (v5.4 Post-Deploy)</h3>
+                    <ol class="text-sm text-gray-400 space-y-2 list-decimal list-inside">
+                        <li>Monitor production debug logs &amp; performance dashboard for sustained improvements over 24–48 hours</li>
+                        <li>Audit remaining <code>Promise.all()</code> patterns in BrowseClient, ListsClient, SearchOverlay</li>
+                        <li>Create reusable <code>batchRpcs()</code> utility to standardise sequential RPC calls app-wide</li>
+                        <li>Run full Lighthouse audit on all pages for regressions</li>
+                    </ol>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-xs py-6" style="color: #334155; border-top: 1px solid rgba(103,232,249,0.08); margin-top: 32px;">
+            movieknight.ca Command Center &mdash; All data sourced directly from CLAUDE.md, package.json, vercel.json, supabase/functions, and CHANGELOG.md &mdash; v5.4 (May 18, 2026)
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.getElementById(this.dataset.tab).classList.remove('hidden');
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

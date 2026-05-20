@@ -1,0 +1,23 @@
+{
+  "id": "app.cinestream.tv",
+  "version": "1.0.0",
+  "vendor": "CineStream",
+  "type": "web",
+  "main": "https://cinestream-app-lake.vercel.app/?tv=1",
+  "title": "CineStream",
+  "icon": "icon-80.png",
+  "largeIcon": "icon-130.png",
+  "bgImage": "splash.png",
+  "bgColor": "#0b0d17",
+  "iconColor": "#0b0d17",
+  "splashBackground": "#0b0d17",
+  "resolution": "1920x1080",
+  "transparent": false,
+  "requiredMembers": [
+    "externalLink"
+  ],
+  "requiredPermissions": [
+    "time.query",
+    "activity.operation"
+  ]
+}

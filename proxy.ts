@@ -1,0 +1,109 @@
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+const PROTECTED = [
+  '/home', '/for-you', '/browse', '/trending', '/calendar', '/mood',
+  '/lists', '/list/', '/friends', '/messages', '/notifications', '/profile',
+];
+
+function buildCsp(nonce: string): string {
+  return [
+    `default-src 'self'`,
+    // Scripts: self + nonce only (no unsafe-inline, no unsafe-eval in production)
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // Styles: self + inline (required by Next.js CSS-in-JS and inline styles)
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    `font-src 'self' https://fonts.gstatic.com`,
+    `img-src 'self' data: blob: https://image.tmdb.org https://api.dicebear.com https://img.youtube.com`,
+    `media-src 'self'`,
+    // Frames: YouTube nocookie only
+    `frame-src https://www.youtube-nocookie.com https://www.youtube.com`,
+    // Connections: Supabase only
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.dicebear.com https://image.tmdb.org`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `frame-ancestors 'none'`,
+    `upgrade-insecure-requests`,
+  ].join('; ');
+}
+
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Pass through Next.js internals and static assets
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/icons') ||
+    /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname)
+  ) {
+    return NextResponse.next({ request });
+  }
+
+  // Generate a fresh nonce for each request
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = buildCsp(nonce);
+
+  let supabaseResponse = NextResponse.next({ request });
+
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const isProtected = PROTECTED.some(p => pathname === p || pathname.startsWith(p));
+
+    if (!user && isProtected) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      const res = NextResponse.redirect(loginUrl);
+      res.headers.set('Content-Security-Policy', csp);
+      return res;
+    }
+
+    if (user && (pathname === '/login' || pathname === '/signup')) {
+      const res = NextResponse.redirect(new URL('/home', request.url));
+      res.headers.set('Content-Security-Policy', csp);
+      return res;
+    }
+
+    // Forward nonce to layout via header so it can be applied to scripts
+    supabaseResponse.headers.set('x-nonce', nonce);
+    supabaseResponse.headers.set('Content-Security-Policy', csp);
+    return supabaseResponse;
+
+  } catch (err) {
+    // FAIL CLOSED: redirect protected routes to login on auth errors
+    console.error('[proxy] auth check failed:', err);
+    const isProtected = PROTECTED.some(p => pathname === p || pathname.startsWith(p));
+    if (isProtected) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'auth_check_failed');
+      const res = NextResponse.redirect(loginUrl);
+      res.headers.set('Content-Security-Policy', csp);
+      return res;
+    }
+    const res = NextResponse.next({ request });
+    res.headers.set('Content-Security-Policy', csp);
+    return res;
+  }
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};

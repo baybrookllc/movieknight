@@ -1,0 +1,10 @@
+{
+  "name": "CineStream",
+  "short_name": "CineStream",
+  "description": "AI-powered movie & TV discovery with semantic search and social features",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0B0B0F",
+  "theme_color": "#FF2E63",
+  "icons": []
+}

@@ -1,0 +1,72 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea that would make StreamSocial better? We'd love to hear it!
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature summary
+      description: A brief description of the feature you'd like to see.
+      placeholder: One-line summary of the feature
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem it solves
+      description: What problem does this feature solve? What user need does it address?
+      placeholder: As a user, I want to... so that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the solution you'd like to see, including any UI/UX ideas.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches you've considered?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Discovery / Search
+        - Watch Tracking
+        - Social Features (Friends, Lists)
+        - Recommendations (For You / Mood)
+        - Content Information
+        - Notifications
+        - Profile / Settings
+        - Performance / Offline
+        - Accessibility
+        - Mobile / App
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to you?
+      options:
+        - Nice to have
+        - Would use regularly
+        - Critical for my use case
+    validations:
+      required: true

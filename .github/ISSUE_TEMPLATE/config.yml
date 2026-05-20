@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project documentation
+    url: https://github.com/baybrookllc/cinestream/blob/main/README.md
+    about: Check the README for setup instructions and documentation
+  - name: Changelog
+    url: https://github.com/baybrookllc/cinestream/blob/main/CHANGELOG.md
+    about: See what changed in each version
