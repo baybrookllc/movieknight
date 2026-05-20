@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, startTransition } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FUNCTIONS_URL, getAuthHeader } from '@/lib/utils';
 import TitleCard from '@/components/TitleCard';
 import type { Title } from '@/lib/types';
 
 const PAGE_SIZE = 24;
-const GRID_COLS = 6;
 
 interface FilterState {
   format: string;
@@ -152,8 +151,12 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
       if (cached) {
         const { genres, platforms, ts } = JSON.parse(cached);
         if (Date.now() - ts < CACHE_TTL) {
-          setGenreList(genres);
-          setPlatformList(platforms);
+          // startTransition defers these non-urgent updates, satisfying the linter
+          // and avoiding a synchronous render cascade during the effect.
+          startTransition(() => {
+            setGenreList(genres);
+            setPlatformList(platforms);
+          });
           return; // skip network fetch entirely
         }
       }
@@ -224,10 +227,10 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
     } finally {
       if (gen === genRef.current) setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, filters]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     runSearch(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, filters]);

@@ -8,18 +8,15 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const OPENAI_MODEL = "text-embedding-3-small";
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const OPENAI_TIMEOUT_MS = 8000; // 8 second timeout for OpenAI API (fallback if exceeded)
 
-// In-memory rate limiter (60 req / 60 s per IP).
-// NOTE: resets on process restart — bypassable via cold-start cycling.
-// Replace with Deno KV or Upstash Redis for hard enforcement.
 const RL_MAX = 60;
-const RL_WINDOW_MS = 60_000;
-const rlStore = new Map<string, { count: number; windowStart: number }>();
+const RL_WINDOW_SECS = 60;
 
 function getClientIp(req: Request): string {
   return (
@@ -27,18 +24,6 @@ function getClientIp(req: Request): string {
     req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
     "unknown"
   );
-}
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = rlStore.get(ip);
-  if (!entry || now - entry.windowStart > RL_WINDOW_MS) {
-    rlStore.set(ip, { count: 1, windowStart: now });
-    return true;
-  }
-  if (entry.count >= RL_MAX) return false;
-  entry.count++;
-  return true;
 }
 
 Deno.serve(async (req: Request) => {
@@ -56,7 +41,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const ip = getClientIp(req);
-  if (!checkRateLimit(ip)) {
+  if (!await checkRateLimit(`semantic-search:${ip}`, RL_MAX, RL_WINDOW_SECS)) {
     return json({ error: "Rate limit exceeded. Please wait a minute." }, 429);
   }
 

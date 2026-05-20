@@ -20,13 +20,15 @@ const AUTO_LISTS: { status: WatchStatus; label: string; color: string; icon: str
 
 export default function ListsClient() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('auto');
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [myLists, setMyLists] = useState<any[]>([]);
   const [sharedLists, setSharedLists] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetched, setFetched] = useState(false);
+  // Derive loading: true while auth is resolving, or once we have a user but haven't fetched yet
+  const loading = authLoading || (!!user && !fetched);
 
   // Expanded auto-list view
   const [expandedStatus, setExpandedStatus] = useState<WatchStatus | null>(null);
@@ -40,15 +42,9 @@ export default function ListsClient() {
   const [newPublic, setNewPublic] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (!user) { setLoading(false); return; }
-    loadAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
+  // Declared before the useEffect that calls it to satisfy the linter
   async function loadAll() {
     if (!user) return;
-    setLoading(true);
     try {
       // Sequential to avoid connection pool saturation
       const [countRes, myRes, sharedRes] = await batchRpcs([
@@ -78,9 +74,15 @@ export default function ListsClient() {
         .map(m => ({ ...m.custom_lists, role: m.role }));
       setSharedLists(shared);
     } finally {
-      setLoading(false);
+      setFetched(true);
     }
   }
+
+  useEffect(() => {
+    if (!user) return;
+    loadAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   async function openStatusList(status: WatchStatus) {
     setExpandedStatus(status);

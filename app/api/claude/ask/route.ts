@@ -17,23 +17,54 @@ import { cookies } from 'next/headers';
 import Anthropic from '@anthropic-ai/sdk';
 import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
 
-// In-memory rate limiter (per-user, 10 req/min).
-// NOTE: resets on cold start — effective for warm instances but bypassable via
-// cold-start cycling. Replace with Upstash Redis for hard enforcement.
 const RL_MAX = 10;
-const RL_WINDOW_MS = 60_000;
-const rlStore = new Map<string, { count: number; windowStart: number }>();
+const RL_WINDOW_SECS = 60;
 
-function checkRateLimit(userId: string): boolean {
+// In-memory fallback — used when Upstash env vars are not set
+const rlStore = new Map<string, { count: number; windowStart: number }>();
+function checkRateLimitMemory(userId: string): boolean {
   const now = Date.now();
   const entry = rlStore.get(userId);
-  if (!entry || now - entry.windowStart > RL_WINDOW_MS) {
+  if (!entry || now - entry.windowStart > RL_WINDOW_SECS * 1000) {
     rlStore.set(userId, { count: 1, windowStart: now });
     return true;
   }
   if (entry.count >= RL_MAX) return false;
   entry.count++;
   return true;
+}
+
+/**
+ * Rate limit via Upstash REST API (INCR + EXPIRE NX fixed window).
+ * Falls back to in-memory when UPSTASH_REDIS_REST_URL / _TOKEN are not set.
+ * Configure via: Vercel Dashboard → Environment Variables (or vercel env add).
+ */
+async function checkRateLimit(userId: string): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) return checkRateLimitMemory(userId);
+
+  try {
+    const key = `movieknight:claude:ask:${userId}`;
+    const res = await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['INCR', key],
+        ['EXPIRE', key, RL_WINDOW_SECS, 'NX'],
+      ]),
+    });
+    if (!res.ok) return checkRateLimitMemory(userId);
+    const results = await res.json();
+    const count = results[0]?.result as number;
+    return count <= RL_MAX;
+  } catch {
+    return checkRateLimitMemory(userId);
+  }
 }
 
 const SYSTEM_PROMPT = `You are a movie and TV recommendation assistant for StreamSocial, a tracking app. You help users understand titles, find similar content, and explore their taste.
@@ -68,7 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Rate limit ─────────────────────────────────────────────────────
-    if (!checkRateLimit(user.id)) {
+    if (!await checkRateLimit(user.id)) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please wait a minute.' },
         { status: 429 }
