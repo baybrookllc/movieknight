@@ -72,16 +72,23 @@ export function statusProgress(status: string): number {
   }
 }
 
-/** Get auth header — uses session JWT if available, falls back to anon key */
+/** Get auth header — uses session JWT if available, falls back to anon key.
+ *
+ * getSession() may make a network round-trip to refresh a stale token.
+ * We race it against a 2-second deadline so a slow/stalled auth API
+ * never blocks callers (e.g. semantic-search on the homepage). */
 export async function getAuthHeader(): Promise<Record<string, string>> {
+  const fallback = { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}` };
   try {
     // Dynamic import to avoid SSR issues
     const { supabase } = await import('@/lib/supabase');
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
+    const result = await Promise.race([supabase.auth.getSession(), timeout]);
+    if (!result) return fallback; // timed out — fall back to anon key
+    const token = result.data.session?.access_token ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     return { Authorization: `Bearer ${token}` };
   } catch {
-    return { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}` };
+    return fallback;
   }
 }
 
