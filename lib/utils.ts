@@ -72,24 +72,54 @@ export function statusProgress(status: string): number {
   }
 }
 
-/** Get auth header — uses session JWT if available, falls back to anon key.
+/** Get auth header — uses session JWT if available.
  *
- * getSession() may make a network round-trip to refresh a stale token.
- * We race it against a 2-second deadline so a slow/stalled auth API
- * never blocks callers (e.g. semantic-search on the homepage). */
+ * Resolution order:
+ * 1. supabase.auth.getSession() (fast when session is in localStorage)
+ * 2. Manually read the Supabase SSR cookie (base64-encoded JSON) —
+ *    needed when @supabase/ssr stores the session in httpOnly-style
+ *    cookies that getSession() misses in the browser client.
+ * 3. Empty header — callers that use supabase.functions.invoke() handle
+ *    auth internally; this fallback only affects raw fetch() callers. */
 export async function getAuthHeader(): Promise<Record<string, string>> {
-  const fallback = { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}` };
   try {
-    // Dynamic import to avoid SSR issues
+    // 1. Try the SDK first (covers localStorage-based sessions)
     const { supabase } = await import('@/lib/supabase');
     const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
     const result = await Promise.race([supabase.auth.getSession(), timeout]);
-    if (!result) return fallback; // timed out — fall back to anon key
-    const token = result.data.session?.access_token ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    return { Authorization: `Bearer ${token}` };
-  } catch {
-    return fallback;
-  }
+    const sdkToken = result?.data?.session?.access_token;
+    if (sdkToken) return { Authorization: `Bearer ${sdkToken}` };
+
+    // 2. SDK missed it — manually decode the Supabase SSR auth cookie.
+    //    Format: sb-{projectRef}-auth-token = base64-<base64url(JSON)>
+    if (typeof document !== 'undefined') {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : '';
+      if (projectRef) {
+        const cookieName = `sb-${projectRef}-auth-token`;
+        const raw = document.cookie
+          .split(';')
+          .map(c => c.trim())
+          .find(c => c.startsWith(`${cookieName}=`))
+          ?.split('=').slice(1).join('=') ?? '';
+        if (raw) {
+          try {
+            const b64 = raw.startsWith('base64-') ? raw.slice(7) : raw;
+            const session = JSON.parse(atob(b64));
+            const cookieToken = session?.access_token;
+            const expiresAt: number = session?.expires_at ?? 0;
+            if (cookieToken && expiresAt > Date.now() / 1000) {
+              return { Authorization: `Bearer ${cookieToken}` };
+            }
+          } catch { /* malformed cookie — continue */ }
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  // 3. No session found — return empty (supabase.functions.invoke() handles
+  //    its own auth; raw fetch() callers will get a 401 and should handle it)
+  return {};
 }
 
 /** Truncate string to maxLen */
