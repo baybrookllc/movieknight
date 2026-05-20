@@ -20,6 +20,7 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
       {
         headers: { Authorization: `Bearer ${anonKey}` },
         next: { revalidate: 3600 }, // cache this fetch for 1 hour
+        signal: AbortSignal.timeout(6000), // don't block page render for more than 6s
       }
     );
 

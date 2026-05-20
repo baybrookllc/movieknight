@@ -90,7 +90,7 @@ async function semanticSearch(query: string, limit = 8): Promise<MatchTitle[]> {
     const headers = await getAuthHeader();
     const res = await fetch(
       `${FUNCTIONS_URL}/semantic-search?query=${encodeURIComponent(query)}&limit=${limit}`,
-      { headers }
+      { headers, signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -288,37 +288,43 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
 
   const loadRecommendation = useCallback(async (moodIdx: number, skip?: Set<string>) => {
     setLoading(true);
-    const results = await semanticSearch(MOODS[moodIdx].query, 12);
+    try {
+      const results = await semanticSearch(MOODS[moodIdx].query, 12);
 
-    // Enrich with backdrop_path and runtime from DB (semantic-search doesn't return these)
-    if (results.length > 0) {
-      const ids = results.map(r => r.id);
-      const { data: extras } = await supabase
-        .from('titles')
-        .select('id,backdrop_path,runtime')
-        .in('id', ids);
-      const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
-      for (const r of results) {
-        Object.assign(r, extrasMap[r.id] ?? {});
+      // Enrich with backdrop_path and runtime from DB (semantic-search doesn't return these)
+      if (results.length > 0) {
+        const ids = results.map(r => r.id);
+        const { data: extras } = await supabase
+          .from('titles')
+          .select('id,backdrop_path,runtime')
+          .in('id', ids);
+        const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
+        for (const r of results) {
+          Object.assign(r, extrasMap[r.id] ?? {});
+        }
       }
-    }
 
-    const skipSet = skip ?? dismissed;
-    const filtered = results.filter(r => !skipSet.has(r.id));
-    const topMatch = filtered[0] ?? results[0] ?? null;
-    setMatch(topMatch);
-    setQuickPicks(filtered.slice(1, 8));
-    setTrailerKey(null);
-    setLoading(false);
+      const skipSet = skip ?? dismissed;
+      const filtered = results.filter(r => !skipSet.has(r.id));
+      const topMatch = filtered[0] ?? results[0] ?? null;
+      setMatch(topMatch);
+      setQuickPicks(filtered.slice(1, 8));
+      setTrailerKey(null);
 
-    // Fetch trailer for the top match in background
-    if (topMatch) {
-      const [, tmdbId] = topMatch.id.split(':');
-      const headers = await getAuthHeader();
-      fetch(`${FUNCTIONS_URL}/tmdb-cache?action=videos&tmdb_id=${tmdbId}&media_type=${topMatch.media_type}`, { headers })
-        .then(r => r.ok ? r.json() : null)
-        .then(vd => { if (vd?.trailer?.key) setTrailerKey(vd.trailer.key); })
-        .catch(() => {});
+      // Fetch trailer for the top match in background
+      if (topMatch) {
+        const [, tmdbId] = topMatch.id.split(':');
+        const headers = await getAuthHeader();
+        fetch(`${FUNCTIONS_URL}/tmdb-cache?action=videos&tmdb_id=${tmdbId}&media_type=${topMatch.media_type}`, { headers })
+          .then(r => r.ok ? r.json() : null)
+          .then(vd => { if (vd?.trailer?.key) setTrailerKey(vd.trailer.key); })
+          .catch(() => {});
+      }
+    } catch (err) {
+      console.error('[HomeClient] loadRecommendation failed:', err);
+    } finally {
+      // Always clear the spinner, even on error — prevents infinite loading state
+      setLoading(false);
     }
   }, [dismissed]);
 
