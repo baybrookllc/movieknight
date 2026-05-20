@@ -1,6 +1,9 @@
 import { Metadata } from 'next';
 import DetailClient from '@/components/DetailClient';
-import { TMDB_BACKDROP, TMDB_IMG, truncate } from '@/lib/utils';
+import { TMDB_IMG, truncate } from '@/lib/utils';
+
+// Cache each title page for 1 hour — title metadata rarely changes
+export const revalidate = 3600;
 
 // Server-side fetch — queries DB directly (avoids edge function Bearer token issues)
 async function getTitle(decodedId: string) {

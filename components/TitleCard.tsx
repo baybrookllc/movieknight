@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { TMDB_IMG, releaseYear } from '@/lib/utils';
 
 interface TitleCardProps {
@@ -12,6 +13,7 @@ interface TitleCardProps {
   release_date?: string | null;
   status?: string | null;
   size?: 'sm' | 'md' | 'lg';
+  priority?: boolean;
 }
 
 const SIZE_MAP = {
@@ -21,7 +23,7 @@ const SIZE_MAP = {
 };
 
 export default function TitleCard({
-  id, title, poster_path, media_type, vote_average, release_date, status, size = 'md'
+  id, title, poster_path, media_type, vote_average, release_date, status, size = 'md', priority = false
 }: TitleCardProps) {
   const { width, height } = SIZE_MAP[size];
   const posterSrc = poster_path ? `${TMDB_IMG}${poster_path}` : null;
@@ -52,12 +54,13 @@ export default function TitleCard({
           }}
         >
           {posterSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={posterSrc}
               alt={title}
-              loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              fill
+              sizes={`${width}px`}
+              priority={priority}
+              style={{ objectFit: 'cover' }}
             />
           ) : (
             <div style={{

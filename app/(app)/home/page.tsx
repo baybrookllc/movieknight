@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import TrackerRow from '@/components/TrackerRow';
@@ -387,10 +388,16 @@ export default function HomePage() {
           <div className="match-card">
             {/* Backdrop */}
             {match.backdrop_path && (
-              <div
-                className="match-backdrop"
-                style={{ backgroundImage: `url(${TMDB_BACKDROP}${match.backdrop_path})` }}
-              />
+              <div className="match-backdrop">
+                <Image
+                  src={`${TMDB_BACKDROP}${match.backdrop_path}`}
+                  alt=""
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 1280px"
+                  style={{ objectFit: 'cover', objectPosition: 'center top' }}
+                />
+              </div>
             )}
             <div className="match-gradient" />
 
@@ -517,8 +524,14 @@ export default function HomePage() {
                     onClick={() => router.push(`/${p.id}`)}
                   >
                     {p.poster_path ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`${TMDB_IMG}${p.poster_path}`} alt={p.title} />
+                      <Image
+                        src={`${TMDB_IMG}${p.poster_path}`}
+                        alt={p.title}
+                        width={140}
+                        height={200}
+                        loading="lazy"
+                        style={{ objectFit: 'cover', display: 'block' }}
+                      />
                     ) : (
                       <div style={{ width: 140, height: 200, background: 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)', padding: 8, textAlign: 'center' }}>
                         {p.title}

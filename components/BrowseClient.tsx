@@ -512,7 +512,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
                 borderRadius: 'var(--radius)',
               }}
             >
-              <TitleCard {...t} />
+              <TitleCard {...t} priority={idx < 6} />
             </div>
           ))}
         </div>
