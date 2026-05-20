@@ -20,21 +20,20 @@ interface FeedItem {
 }
 
 export default function ForYouPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [items, setItems] = useState<FeedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<FeedItem[] | null>(null);
+  // Derive loading: true while auth is resolving, or once we have a user but no data yet
+  const loading = authLoading || (!!user && items === null);
 
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
-    (async () => {
-      const { data } = await supabase.rpc('get_for_you_feed', { p_limit: 40 });
+    if (!user) return;
+    supabase.rpc('get_for_you_feed', { p_limit: 40 }).then(({ data }) => {
       setItems((data ?? []) as FeedItem[]);
-      setLoading(false);
-    })();
+    });
   }, [user]);
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <div className="empty-state">
         <p>Sign in to see your personalized picks.</p>
@@ -54,14 +53,14 @@ export default function ForYouPage() {
 
       {loading ? (
         <div className="loading-center"><div className="spinner" /></div>
-      ) : items.length === 0 ? (
+      ) : (items ?? []).length === 0 ? (
         <div className="empty-state">
           <p>Watch a few titles to unlock your personalized feed.</p>
           <Link href="/browse" className="btn btn-primary">Browse Titles</Link>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 20 }}>
-          {items.map(item => (
+          {(items ?? []).map(item => (
             <div key={item.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/${item.id}`)}>
               <div style={{
                 position: 'relative', borderRadius: 'var(--radius)',

@@ -29,50 +29,41 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-19  
-**Branch:** claude/sharp-mayer-5e02fe (worktree off master)  
-**Focus:** Core Web Vitals performance optimization
+**Date:** 2026-05-20  
+**Branch:** claude/sharp-mayer-5e02fe → master  
+**Focus:** SSR homepage refactor, lint cleanup, Upstash rate limiter replacement
 
 ### ✅ Completed
 
-#### Performance Audit (Phase 1)
-Identified 7 bottlenecks across LCP, INP, TTFB, and bundle size:
-- No `next/image` anywhere — all raw `<img>` tags, no WebP/AVIF, no preloading
-- Homepage 100% client-side: 3 sequential network hops before any content renders
-- Duplicate `AuthProvider` mounting on every app page (double `getSession()` + double listener)
-- 6 Inter font weights loaded (400–900); only 4 needed
-- `SearchOverlay` always mounted with active keyboard listeners, never code-split
-- Quick-pick `<img>` tags had no `loading` attribute (eager by default)
-- `next.config.ts` missing AVIF/WebP formats and `optimizePackageImports`
+#### Previous Session (2026-05-19 — Performance Optimization)
+- 7 CWV bottlenecks identified; 8 optimizations shipped (next/image, AVIF/WebP, dedup AuthProvider, SearchOverlay code-split, ISR, font weights)
+- Deployed to production: https://movieknight.ca (dpl_Dzhs7ovLphYG5iiTmV3MCF8AREpa, commit ede0e5b)
 
-#### Performance Optimizations (Phase 2) — 8 changes, build verified clean
-- **`next.config.ts`** — Added `formats: ['image/avif', 'image/webp']`, `deviceSizes`, `imageSizes`, `experimental.optimizePackageImports: ['posthog-js']`
-- **`components/TitleCard.tsx`** — Replaced raw `<img>` with `next/image` (`fill` mode, auto lazy, new `priority` prop)
-- **`components/BrowseClient.tsx`** — First 6 TitleCards get `priority={true}` (eager + preload link) for above-fold images
-- **`app/(app)/home/page.tsx`** — Hero backdrop: CSS `background-image` → `<Image fill priority>` (AVIF, preloadable, responsive sizes); quick-pick `<img>` → `<Image loading="lazy">`
-- **`app/(app)/layout.tsx`** — `SearchOverlay` static import → `dynamic()` lazy chunk; `AuthProvider` kept here (single instance)
-- **`app/providers.tsx`** — Removed duplicate `AuthProvider` wrapper; PostHogProvider only. Eliminates one `getSession()` + one `onAuthStateChange` subscription on every app-page load
-- **`app/layout.tsx`** — Inter font weights: `['400','500','600','700','800','900']` → `['400','600','700','800']` (2 fewer font network requests)
-- **`app/(app)/[titleId]/page.tsx`** — Added `export const revalidate = 3600` (ISR: detail page DB queries cached 1 hr); removed unused `TMDB_BACKDROP` import
-
-#### Build Validation (Phase 3)
-- `✓ Compiled successfully` — zero TypeScript errors, zero new lint errors introduced
-- All 20 pages generated; 7 pre-existing lint errors confirmed pre-existing (not from this session)
+#### This Session
+- **SSR Homepage Refactor (Task 1)**: `app/(app)/home/page.tsx` converted to async Server Component. New `app/(app)/home/HomeClient.tsx` accepts `initialMatch` / `initialQuickPicks` props. Server pre-fetches MOODS[0] with `next: { revalidate: 3600 }` — hero renders on first server response, no client-side spinner.
+- **Lint Cleanup (Task 2)**: Fixed `react-hooks/set-state-in-effect` across all 4 flagged files:
+  - `for-you/page.tsx`: Derived loading from `authLoading || (!!user && items === null)`; removed synchronous guard setState
+  - `ListsClient.tsx`: Moved `loadAll` above its useEffect; replaced loading state with derived `fetched` flag
+  - `BrowseClient.tsx`: `startTransition` on cache-hit setState; removed stale unused eslint-disable and dead `GRID_COLS` constant
+  - `HomeClient.tsx`: One intentional `eslint-disable-next-line` on `setGreeting` (hydration-mismatch prevention)
+- **Rate Limiter Replacement (Task 3)**: No new npm packages — Upstash REST API used directly:
+  - `supabase/functions/_shared/rate-limit.ts`: New shared Deno utility (INCR + EXPIRE NX pipeline); falls back to "allow" when env vars unset
+  - `semantic-search/index.ts` + `generate-embedding/index.ts`: Replaced in-memory rlStore with shared `checkRateLimit()`
+  - `app/api/claude/ask/route.ts`: Async Upstash REST rate limiter with in-memory fallback
+- **Build**: `✓ Compiled successfully`, TypeScript clean, zero new lint errors, 20/20 pages
 
 ### 🔴 Issues Identified
 
-- **Homepage LCP still client-bottlenecked** — hero backdrop `<Image priority>` helps with format/sizing, but the backdrop URL isn't known until after JS hydrates and the semantic search resolves (~3 sequential network calls). Full fix requires an SSR homepage restructure (server action for default mood). Tracked as next-session item #1.
-- **7 pre-existing lint errors** in `for-you/page.tsx`, `home/page.tsx`, `BrowseClient.tsx`, `ListsClient.tsx` — `react-hooks/set-state-in-effect` and `@typescript-eslint/no-explicit-any`. Not introduced this session; need a dedicated cleanup pass.
-- **In-memory rate limiters** on `/api/claude/ask`, `semantic-search`, `generate-embedding` reset on cold start. Requires Upstash Redis (Vercel Marketplace). Tracked in code with comments.
-- **Semantic search keyword fallback** (`supabase/functions/semantic-search/index.ts:200`) fetches all titles client-side — should use `to_tsvector`. Low urgency (fallback only fires on OpenAI timeout).
-- **`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`** missing from Vercel Preview build environment (branch-scoped vars set but CLI deployments don't pick them up). App warns at build time; fix in Vercel Dashboard → Settings → Environment Variables → Preview (all branches).
+- **Upstash env vars not yet configured**: Rate limiters fall back to in-memory until `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are added to Vercel. Provision via Vercel Marketplace → Upstash — env vars auto-inject.
+- **`ListsClient.tsx` — 9 pre-existing `@typescript-eslint/no-explicit-any` errors**: Pre-date this session; proper fix requires `supabase gen types`. Out of scope.
+- **Semantic search keyword fallback** fetches all titles client-side — should use `to_tsvector`. Low urgency (fallback only fires on OpenAI timeout).
+- **`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`** still missing from Vercel Preview build environment. Fix in Vercel Dashboard → Settings → Environment Variables → Preview (all branches).
 
 ### 📋 Next Session
 
-1. **SSR homepage refactor** — Move default mood recommendation fetch to a server action or RSC so the hero renders server-side on first load. This is the remaining LCP bottleneck that code changes alone cannot fix. Approach: thin Server Component wrapper for `HomePage` that pre-fetches a default `activeMood=0` result and passes it as `initialMatch` prop to the client component.
-2. **PR / merge** — Open a PR from `claude/sharp-mayer-5e02fe` to `master` (or squash-merge directly) so the performance changes ship to production.
-3. **Fix pre-existing lint errors** — Dedicated pass to fix `react-hooks/set-state-in-effect` in `home/page.tsx`, `BrowseClient.tsx`, `for-you/page.tsx`, `ListsClient.tsx`.
-4. **Replace in-memory rate limiters** — Install Upstash Redis via Vercel Marketplace; replace `rlStore` Maps in `app/api/claude/ask/route.ts`, `supabase/functions/semantic-search/index.ts`, `supabase/functions/generate-embedding/index.ts`.
+1. **Provision Upstash** — Vercel Marketplace → Upstash Redis → install to project. Auto-injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to all environments; rate limiters activate automatically.
+2. **Fix ListsClient `any` types** — Run `npx supabase gen types typescript --project-id <id> > lib/database.types.ts`, then replace `any[]` in `ListsClient.tsx` with generated table row types.
+3. **Add Supabase public vars to Vercel Preview** — Vercel Dashboard → cinestream-app → Settings → Environment Variables → add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for **Preview** (all branches, not branch-scoped).
 
-**Status:** 8 performance optimizations shipped, build clean, TypeScript clean. Homepage SSR restructure is the primary remaining LCP work. ✅
+**Status:** All three outstanding tasks complete, build clean, TypeScript clean. Ready to merge to master and deploy to production. ✅
 
