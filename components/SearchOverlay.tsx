@@ -1,17 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { FUNCTIONS_URL, TMDB_IMG, getAuthHeader } from '@/lib/utils';
-
-interface SearchResult {
-  id: string;
-  title: string;
-  poster_path: string | null;
-  media_type: 'movie' | 'tv';
-  release_date?: string | null;
-  vote_average?: number | null;
-}
+import type { SearchResult } from '@/lib/types';
 
 export default function SearchOverlay() {
   const router = useRouter();
@@ -43,8 +36,10 @@ export default function SearchOverlay() {
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     } else {
-      setQuery('');
-      setResults([]);
+      startTransition(() => {
+        setQuery('');
+        setResults([]);
+      });
     }
   }, [open]);
 
@@ -153,10 +148,9 @@ export default function SearchOverlay() {
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                   {/* Poster */}
-                  <div style={{ width: 36, height: 54, flexShrink: 0, background: 'var(--bg)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
+                  <div style={{ width: 36, height: 54, flexShrink: 0, background: 'var(--bg)', border: '1px solid var(--border-light)', overflow: 'hidden', position: 'relative' }}>
                     {r.poster_path && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`${TMDB_IMG}${r.poster_path}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <Image src={`${TMDB_IMG}${r.poster_path}`} alt="" fill sizes="36px" style={{ objectFit: 'cover' }} />
                     )}
                   </div>
                   {/* Info */}

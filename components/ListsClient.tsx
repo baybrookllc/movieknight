@@ -7,7 +7,15 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import TitleCard from '@/components/TitleCard';
 import { batchRpcs } from '@/lib/batch-rpcs';
-import type { WatchStatus } from '@/lib/types';
+import type { CustomList, WatchStatus, Title } from '@/lib/types';
+
+// ── Local row types matching Supabase join shapes ─────────────────────────────
+type SharedList = CustomList & { role: 'editor' | 'viewer' };
+type WatchHistoryCount = { status: WatchStatus | null };
+type ListMemberRow = { role: 'editor' | 'viewer'; custom_lists: Array<Omit<CustomList, 'is_public'>> | null };
+type TitleSummary = Pick<Title, 'id' | 'title' | 'poster_path' | 'media_type' | 'release_date' | 'vote_average'>;
+// Supabase returns joined rows as arrays even for foreign-key (many-to-one) joins
+type StatusItem = { title_id: string; watched_at: string; titles: TitleSummary[] | null };
 
 type Tab = 'auto' | 'my-lists' | 'shared';
 
@@ -24,15 +32,15 @@ export default function ListsClient() {
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('auto');
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [myLists, setMyLists] = useState<any[]>([]);
-  const [sharedLists, setSharedLists] = useState<any[]>([]);
+  const [myLists, setMyLists] = useState<CustomList[]>([]);
+  const [sharedLists, setSharedLists] = useState<SharedList[]>([]);
   const [fetched, setFetched] = useState(false);
   // Derive loading: true while auth is resolving, or once we have a user but haven't fetched yet
   const loading = authLoading || (!!user && !fetched);
 
   // Expanded auto-list view
   const [expandedStatus, setExpandedStatus] = useState<WatchStatus | null>(null);
-  const [statusItems, setStatusItems] = useState<any[]>([]);
+  const [statusItems, setStatusItems] = useState<StatusItem[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
 
   // Create list modal
@@ -63,15 +71,16 @@ export default function ListsClient() {
 
       // Counts
       const c: Record<string, number> = {};
-      for (const row of (countRes.data ?? [])) {
+      for (const row of (countRes.data ?? []) as WatchHistoryCount[]) {
         if (row.status) c[row.status] = (c[row.status] || 0) + 1;
       }
       setCounts(c);
 
-      setMyLists(myRes.data ?? []);
-      const shared = ((sharedRes.data ?? []) as any[])
-        .filter(m => m.custom_lists)
-        .map(m => ({ ...m.custom_lists, role: m.role }));
+      setMyLists((myRes.data ?? []) as CustomList[]);
+      // Supabase returns the foreign join as an array (even though it's 1:1 here)
+      const shared = ((sharedRes.data ?? []) as ListMemberRow[])
+        .filter(m => m.custom_lists && m.custom_lists.length > 0)
+        .map(m => ({ ...m.custom_lists![0], is_public: false, role: m.role }));
       setSharedLists(shared);
     } finally {
       setFetched(true);
@@ -94,7 +103,7 @@ export default function ListsClient() {
       .eq('status', status)
       .is('episode_season', null)
       .order('watched_at', { ascending: false });
-    setStatusItems(((data ?? []) as any[]).filter(r => r.titles));
+    setStatusItems(((data ?? []) as StatusItem[]).filter(r => r.titles && r.titles.length > 0));
     setStatusLoading(false);
   }
 
@@ -157,8 +166,8 @@ export default function ListsClient() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-            {statusItems.map((r: any) => (
-              <TitleCard key={r.title_id} {...r.titles} status={expandedStatus} />
+            {statusItems.map((r) => (
+              <TitleCard key={r.title_id} {...(r.titles![0])} status={expandedStatus} />
             ))}
           </div>
         )}
@@ -244,7 +253,7 @@ export default function ListsClient() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-                  {myLists.map((l: any) => (
+                  {myLists.map((l) => (
                     <ListCard key={l.id} list={l} isOwner onDelete={() => deleteList(l.id)} />
                   ))}
                 </div>
@@ -261,7 +270,7 @@ export default function ListsClient() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-                  {sharedLists.map((l: any) => (
+                  {sharedLists.map((l) => (
                     <ListCard key={l.id} list={l} isOwner={false} role={l.role} />
                   ))}
                 </div>
@@ -312,7 +321,10 @@ export default function ListsClient() {
 
 // ── List card component ────────────────────────────────────────
 function ListCard({ list, isOwner, role, onDelete }: {
-  list: any; isOwner: boolean; role?: string; onDelete?: () => void;
+  list: CustomList & { role?: 'editor' | 'viewer' };
+  isOwner: boolean;
+  role?: 'editor' | 'viewer';
+  onDelete?: () => void;
 }) {
   const router = useRouter();
   return (
