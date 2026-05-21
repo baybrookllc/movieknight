@@ -1,29 +1,17 @@
-/**
- * POST /api/cron/health-check
- *
- * Vercel Cron Job: Triggers health-monitor edge function every 5 minutes.
- * Configured in vercel.json as: { path: "/api/cron/health-check", schedule: "*/5 * * * *" }
- *
- * This endpoint:
- * 1. Verifies the request comes from Vercel (via X-Vercel-Deployment-Url header)
- * 2. Calls the health-monitor edge function with MONITOR_SECRET
- * 3. Returns the health check results
- *
- * Cron payloads from Vercel include:
- *   X-Vercel-Deployment-Url: https://movieknight.ca
- *   Authorization: Bearer {CRON_SECRET} (if set)
- */
+// POST /api/cron/health-check
+//
+// Health check endpoint triggered by GitHub Actions every 5 minutes.
+// Calls the health-monitor Supabase edge function to verify system health.
+// Requires X-Vercel-Deployment-Url header from GitHub Actions.
 
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Only allow POST requests from Vercel cron scheduler
 export async function POST(req: NextRequest) {
   const deploymentUrl = req.headers.get('X-Vercel-Deployment-Url');
   const monitorSecret = process.env.MONITOR_SECRET;
 
-  // ── Verify request is from Vercel (deployment URL header) ────────────────
   if (!deploymentUrl) {
     return NextResponse.json(
       { error: 'Missing X-Vercel-Deployment-Url header' },
@@ -39,7 +27,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // ── Call health-monitor edge function ────────────────────────────────
     const healthMonitorUrl = process.env.SUPABASE_FUNCTION_URL
       ? `${process.env.SUPABASE_FUNCTION_URL}/health-monitor`
       : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/health-monitor`;
@@ -50,7 +37,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${monitorSecret}`,
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(15000), // 15s timeout
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -77,7 +64,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Reject GET and other methods
 export async function GET() {
   return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
 }
