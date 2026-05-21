@@ -76,6 +76,20 @@ interface CachedTitle {
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_TTL_DAYS = 7;
 
+// ── Fetch with timeout ───────────────────────────────────
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────
 
 /**
@@ -205,7 +219,7 @@ async function handleSearch(
     : `/search/multi`; // returns both movies and TV
 
   const tmdbUrl = `${TMDB_BASE_URL}${endpoint}?api_key=${tmdbApiKey}&query=${encodeURIComponent(query)}&include_adult=false`;
-  const tmdbRes = await fetch(tmdbUrl);
+  const tmdbRes = await fetchWithTimeout(tmdbUrl);
 
   if (!tmdbRes.ok) {
     return errorResponse(`TMDB search failed: ${tmdbRes.status}`, 502);
@@ -279,7 +293,7 @@ async function handleDetail(
 
   // ── 2. Fetch from TMDB ────────────────────────────────────
   const tmdbUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${tmdbApiKey}&append_to_response=credits,content_ratings,release_dates`;
-  const tmdbRes = await fetch(tmdbUrl);
+  const tmdbRes = await fetchWithTimeout(tmdbUrl);
 
   if (!tmdbRes.ok) {
     return errorResponse(`TMDB fetch failed: ${tmdbRes.status}`, 502);
@@ -371,7 +385,7 @@ async function handleDiscover(
     return `${TMDB_BASE_URL}/discover/${mediaType}?api_key=${tmdbApiKey}&sort_by=popularity.desc&page=${page}&include_adult=false&language=en-US${countryParam}${companyParam}`;
   });
 
-  const pageResults = await Promise.allSettled(pageUrls.map(url => fetch(url).then(r => r.ok ? r.json() : null)));
+  const pageResults = await Promise.allSettled(pageUrls.map(url => fetchWithTimeout(url).then(r => r.ok ? r.json() : null)));
   const discovered: { id: number; genre_ids: number[] }[] = [];
   for (const result of pageResults) {
     if (result.status === "fulfilled" && result.value?.results) {
@@ -390,7 +404,7 @@ async function handleDiscover(
       batch.map(async ({ id, genre_ids }) => {
         try {
           const detailUrl = `${TMDB_BASE_URL}/${mediaType}/${id}?api_key=${tmdbApiKey}&append_to_response=credits,content_ratings,release_dates`;
-          const detailRes = await fetch(detailUrl);
+          const detailRes = await fetchWithTimeout(detailUrl);
           if (!detailRes.ok) { errors++; return; }
           const detail: TMDBDetailResult = await detailRes.json();
           const row = buildTitleRow(detail, mediaType);
@@ -422,8 +436,8 @@ async function handleGenreSync(
   tmdbApiKey: string
 ) {
   const [movieGenres, tvGenres] = await Promise.all([
-    fetch(`${TMDB_BASE_URL}/genre/movie/list?api_key=${tmdbApiKey}`).then((r) => r.json()),
-    fetch(`${TMDB_BASE_URL}/genre/tv/list?api_key=${tmdbApiKey}`).then((r) => r.json()),
+    fetchWithTimeout(`${TMDB_BASE_URL}/genre/movie/list?api_key=${tmdbApiKey}`).then((r) => r.json()),
+    fetchWithTimeout(`${TMDB_BASE_URL}/genre/tv/list?api_key=${tmdbApiKey}`).then((r) => r.json()),
   ]);
 
   // Merge and deduplicate (many genres appear in both)
@@ -484,7 +498,7 @@ async function handleAwards(
   }
 
   // ── 2. Get IMDb ID from TMDB external_ids ─────────────────
-  const extRes = await fetch(
+  const extRes = await fetchWithTimeout(
     `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?api_key=${tmdbApiKey}`
   );
   if (!extRes.ok) {
@@ -521,8 +535,8 @@ async function handleAwards(
   }
 
   const [wonRes, nomRes] = await Promise.all([
-    fetch(`${SPARQL}?format=json&query=${encodeURIComponent(buildQuery("P166"))}`, { headers }),
-    fetch(`${SPARQL}?format=json&query=${encodeURIComponent(buildQuery("P1411"))}`, { headers }),
+    fetchWithTimeout(`${SPARQL}?format=json&query=${encodeURIComponent(buildQuery("P166"))}`, 15000).then(r => new Response(r.body, { status: r.status, headers: r.headers })).catch(() => new Response('', { status: 500 })),
+    fetchWithTimeout(`${SPARQL}?format=json&query=${encodeURIComponent(buildQuery("P1411"))}`, 15000).then(r => new Response(r.body, { status: r.status, headers: r.headers })).catch(() => new Response('', { status: 500 })),
   ]);
 
   // ── 4. Parse results into category buckets ────────────────
@@ -668,7 +682,7 @@ async function handleWatchProviders(
   }
 
   // ── 2. Fetch from TMDB ────────────────────────────────────
-  const tmdbRes = await fetch(
+  const tmdbRes = await fetchWithTimeout(
     `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/watch/providers?api_key=${tmdbApiKey}`
   );
 
@@ -740,7 +754,7 @@ async function handleUpcoming(
   });
 
   // First page to get total_pages
-  const first = await fetch(`${TMDB_BASE_URL}/discover/movie?${baseParams}&page=1`)
+  const first = await fetchWithTimeout(`${TMDB_BASE_URL}/discover/movie?${baseParams}&page=1`)
     .then(r => r.ok ? r.json() : { results: [], total_pages: 1 })
     .catch(() => ({ results: [], total_pages: 1 }));
 
@@ -750,7 +764,7 @@ async function handleUpcoming(
   const rest = totalPages > 1
     ? await Promise.all(
         Array.from({ length: totalPages - 1 }, (_, i) =>
-          fetch(`${TMDB_BASE_URL}/discover/movie?${baseParams}&page=${i + 2}`)
+          fetchWithTimeout(`${TMDB_BASE_URL}/discover/movie?${baseParams}&page=${i + 2}`)
             .then(r => r.ok ? r.json() : { results: [] })
             .catch(() => ({ results: [] }))
         )
@@ -811,7 +825,7 @@ async function handleVideos(
   }
 
   // ── 2. Fetch from TMDB ────────────────────────────────────
-  const tmdbRes = await fetch(
+  const tmdbRes = await fetchWithTimeout(
     `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/videos?api_key=${tmdbApiKey}&language=en-US`
   );
 
@@ -878,7 +892,7 @@ async function handleSyncNew(
 
   for (const { url, mediaType } of sources) {
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       if (!res.ok) continue;
       const data = await res.json();
       for (const r of data.results ?? []) {
@@ -917,7 +931,7 @@ async function handleSyncNew(
       batch.map(async ({ id, mediaType }) => {
         try {
           const detailUrl = `${TMDB_BASE_URL}/${mediaType}/${id}?api_key=${tmdbApiKey}&append_to_response=credits,content_ratings,release_dates`;
-          const detailRes = await fetch(detailUrl);
+          const detailRes = await fetchWithTimeout(detailUrl);
           if (!detailRes.ok) { errors++; return; }
           const detail: TMDBDetailResult = await detailRes.json();
           const row = buildTitleRow(detail, mediaType);

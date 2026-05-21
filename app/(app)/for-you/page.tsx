@@ -18,9 +18,25 @@ export default function ForYouPage() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.rpc('get_for_you_feed', { p_limit: 40 }).then(({ data }) => {
-      setItems((data ?? []) as ForYouResult[]);
-    });
+
+    // Wrap RPC call with timeout using Promise.race
+    const rpcPromise = supabase.rpc('get_for_you_feed', { p_limit: 40 });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('RPC timeout (10s)')), 10000)
+    );
+
+    Promise.race([rpcPromise, timeoutPromise])
+      .then((result: any) => {
+        setItems((result?.data ?? []) as ForYouResult[]);
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.message.includes('timeout')) {
+          console.warn('[for-you] RPC timeout (10s)');
+        } else {
+          console.error('[for-you] RPC error:', err);
+        }
+        setItems([]);
+      });
   }, [user]);
 
   if (!user && !authLoading) {

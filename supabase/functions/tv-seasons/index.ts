@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
     const TMDB_BASE  = "https://api.themoviedb.org/3";
 
     // 1. Fetch the top-level TV show to get season list
-    const showRes = await fetch(`${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbApiKey}`);
+    const showRes = await fetch(`${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbApiKey}`, { signal: AbortSignal.timeout(8000) });
     if (!showRes.ok) return err_(`TMDB fetch failed: ${showRes.status}`, 502);
 
     const show = await showRes.json();
@@ -89,7 +89,8 @@ Deno.serve(async (req: Request) => {
     const seasonDetails: TMDBSeasonDetail[] = await Promise.all(
       seasonList.map(async (s) => {
         const res = await fetch(
-          `${TMDB_BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${tmdbApiKey}`
+          `${TMDB_BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${tmdbApiKey}`,
+          { signal: AbortSignal.timeout(8000) }
         );
         if (!res.ok) {
           // Return skeleton if a single season fetch fails

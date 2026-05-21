@@ -246,6 +246,7 @@ async function sendDigestEmail(
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: FROM_EMAIL, to, subject: `Your weekly picks are here 🎬`, html }),
+    signal: AbortSignal.timeout(10000), // 10s timeout for email send
   });
 
   if (!res.ok) {

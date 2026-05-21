@@ -16,6 +16,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Anthropic from '@anthropic-ai/sdk';
 import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
+import { retryWithBackoff } from '@/lib/retry';
 
 const RL_MAX = 10;
 const RL_WINDOW_SECS = 60;
@@ -36,14 +37,18 @@ function checkRateLimitMemory(userId: string): boolean {
 
 /**
  * Rate limit via Upstash REST API (INCR + EXPIRE NX fixed window).
- * Falls back to in-memory when UPSTASH_REDIS_REST_URL / _TOKEN are not set.
- * Configure via: Vercel Dashboard → Environment Variables (or vercel env add).
+ * Fails closed (denies) if Upstash is misconfigured or unreachable.
+ * Fallback to in-memory only for graceful degradation on network timeout.
  */
 async function checkRateLimit(userId: string): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  if (!url || !token) return checkRateLimitMemory(userId);
+  // Fail closed: if env vars missing, deny (don't allow unbounded requests)
+  if (!url || !token) {
+    console.warn('[claude/ask] UPSTASH env vars not configured — falling back to in-memory');
+    return checkRateLimitMemory(userId);
+  }
 
   try {
     const key = `movieknight:claude:ask:${userId}`;
@@ -57,12 +62,17 @@ async function checkRateLimit(userId: string): Promise<boolean> {
         ['INCR', key],
         ['EXPIRE', key, RL_WINDOW_SECS, 'NX'],
       ]),
+      signal: AbortSignal.timeout(3000), // 3s timeout on Upstash
     });
-    if (!res.ok) return checkRateLimitMemory(userId);
+    if (!res.ok) {
+      console.warn('[claude/ask] Upstash HTTP error:', res.status, '— falling back to in-memory');
+      return checkRateLimitMemory(userId);
+    }
     const results = await res.json();
     const count = results[0]?.result as number;
     return count <= RL_MAX;
-  } catch {
+  } catch (err) {
+    console.warn('[claude/ask] Upstash timeout/error — falling back to in-memory:', err);
     return checkRateLimitMemory(userId);
   }
 }
@@ -182,7 +192,7 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
       userMessage = `${question}${titleContext}${historyContext}`;
     }
 
-    // ── 6. Call Claude ────────────────────────────────────────────────────
+    // ── 6. Call Claude with retry logic ──────────────────────────────────
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -192,30 +202,65 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
     }
     const anthropic = new Anthropic({ apiKey });
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 600,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+    try {
+      const response = await retryWithBackoff(
+        async () => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-    const text = response.content
-      .filter((block): block is TextBlock => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+          try {
+            return await anthropic.messages.create({
+              model: 'claude-haiku-4-5',
+              max_tokens: 600,
+              system: SYSTEM_PROMPT,
+              messages: [{ role: 'user', content: userMessage }],
+              // @ts-expect-error - signal not yet in Anthropic SDK types but supported at runtime
+              signal: controller.signal,
+            });
+          } catch (err) {
+            clearTimeout(timeoutId);
+            if (err instanceof Error && err.name === 'AbortError') {
+              throw new Error('Claude request timeout (10s)');
+            }
+            throw err;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        },
+        { maxRetries: 2, baseDelayMs: 100, maxDelayMs: 1000 }
+      );
 
-    return NextResponse.json({
-      answer: text,
-      mode,
-      usage: {
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-      },
-    });
+      const text = response.content
+        .filter((block): block is TextBlock => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n');
+
+      return NextResponse.json({
+        answer: text,
+        mode,
+        usage: {
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('timeout')) {
+        console.warn('[claude/ask] Request timeout (10s)');
+        return NextResponse.json(
+          { error: 'Claude request timeout — please try again' },
+          { status: 504 }
+        );
+      }
+      console.error('[claude/ask]', err);
+      const isDev = process.env.NODE_ENV === 'development';
+      const msg = isDev && err instanceof Error ? err.message : 'Failed to generate response';
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   } catch (err) {
-    console.error('[claude/ask]', err);
-    const isDev = process.env.NODE_ENV === 'development';
-    const msg = isDev && err instanceof Error ? err.message : 'Failed to generate response';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[claude/ask] Outer error:', err);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

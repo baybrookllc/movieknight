@@ -26,9 +26,12 @@ export async function checkRateLimit(
   const url = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const token = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
+  // FAIL CLOSED: If Upstash not configured, deny (don't allow all requests)
   if (!url || !token) {
-    // Upstash not configured — allow all requests (in-memory fallback below)
-    return true;
+    console.error(
+      "[checkRateLimit] UPSTASH env vars not set — failing closed (denying all requests)"
+    );
+    return false;
   }
 
   try {
@@ -43,14 +46,19 @@ export async function checkRateLimit(
         ["INCR", key],
         ["EXPIRE", key, windowSecs, "NX"],
       ]),
+      signal: AbortSignal.timeout(3000), // 3s timeout on Upstash call
     });
 
-    if (!res.ok) return true; // on HTTP error, allow
+    if (!res.ok) {
+      console.error("[checkRateLimit] Upstash HTTP error:", res.status);
+      return false; // on HTTP error, fail closed
+    }
 
     const results = await res.json();
     const count = results[0]?.result as number;
     return count <= maxRequests;
-  } catch {
-    return true; // on network error, allow
+  } catch (err) {
+    console.error("[checkRateLimit] Network/timeout error:", err);
+    return false; // on network error, fail closed (deny)
   }
 }

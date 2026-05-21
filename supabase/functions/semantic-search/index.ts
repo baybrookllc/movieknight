@@ -9,14 +9,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { retryWithBackoff } from "../_shared/retry.ts";
+import { CircuitBreaker } from "../_shared/circuit-breaker.ts";
 
 const OPENAI_MODEL = "text-embedding-3-small";
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
-const OPENAI_TIMEOUT_MS = 8000; // 8 second timeout for OpenAI API (fallback if exceeded)
+const OPENAI_TIMEOUT_MS = 8000; // 8 second timeout for OpenAI API
 
 const RL_MAX = 60;
 const RL_WINDOW_SECS = 60;
+
+// Circuit breaker for OpenAI to prevent cascading failures
+const openaiBreaker = new CircuitBreaker({
+  failureThreshold: 3,
+  resetTimeoutMs: 30000,
+  monitoringWindowMs: 60000,
+});
 
 function getClientIp(req: Request): string {
   return (
@@ -98,27 +107,36 @@ Deno.serve(async (req: Request) => {
       return json({ results: [] });
     }
 
-    const { data: titles, error: titlesError } = await supabase
-      .from("titles")
-      .select("id, title, overview, poster_path, media_type, release_date, vote_average, runtime")
-      .in("id", titleIds);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout on metadata fetch
 
-    if (titlesError) throw titlesError;
+    try {
+      const { data: titles, error: titlesError } = await supabase
+        .from("titles")
+        .select("id, title, overview, poster_path, media_type, release_date, vote_average, runtime")
+        .in("id", titleIds);
 
-    // ── Build similarity map and merge ───────────────────────────────
-    const similarityMap = new Map<string, number>(
-      (matches ?? []).map((m: { title_id: string; similarity: number }) => [
-        m.title_id,
-        m.similarity,
-      ])
-    );
+      clearTimeout(timeoutId);
+      if (titlesError) throw titlesError;
 
-    const results = (titles ?? [])
-      .map((t) => ({ ...t, similarity: similarityMap.get(t.id) ?? 0 }))
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, matchLimit);
+      // ── Build similarity map and merge ───────────────────────────
+      const similarityMap = new Map<string, number>(
+        (matches ?? []).map((m: { title_id: string; similarity: number }) => [
+          m.title_id,
+          m.similarity,
+        ])
+      );
 
-    return json({ results });
+      const results = (titles ?? [])
+        .map((t) => ({ ...t, similarity: similarityMap.get(t.id) ?? 0 }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, matchLimit);
+
+      return json({ results });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
   } catch (err) {
     console.error("[semantic-search] error:", err);
     return json({ error: String(err) }, 500);
@@ -131,39 +149,55 @@ async function embedText(text: string): Promise<number[]> {
   const openaiKey = Deno.env.get("OPENAI_API_KEY");
   if (!openaiKey) throw new Error("OPENAI_API_KEY secret is not set");
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+  // Use circuit breaker with retry logic for resilience
+  return openaiBreaker.execute(async () => {
+    return retryWithBackoff(
+      async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
+        try {
+          const res = await fetch("https://api.openai.com/v1/embeddings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${openaiKey}`,
+            },
+            body: JSON.stringify({ model: OPENAI_MODEL, input: text }),
+            signal: controller.signal,
+          });
+
+          if (!res.ok) {
+            const body = await res.text();
+            // Retry on 429 or 503, throw immediately on 4xx auth errors
+            if (res.status === 429 || res.status === 503) {
+              throw new Error(`OpenAI API error ${res.status}: ${body}`);
+            }
+            throw new Error(`OpenAI embeddings API error ${res.status}: ${body}`);
+          }
+
+          const data = await res.json();
+          const embedding = data?.data?.[0]?.embedding;
+          if (!Array.isArray(embedding)) {
+            throw new Error(
+              "Invalid embedding response from OpenAI — missing data[0].embedding"
+            );
+          }
+          return embedding as number[];
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") {
+            throw new Error(
+              `OpenAI request timeout exceeded (${OPENAI_TIMEOUT_MS}ms)`
+            );
+          }
+          throw err;
+        } finally {
+          clearTimeout(timeoutId);
+        }
       },
-      body: JSON.stringify({ model: OPENAI_MODEL, input: text }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`OpenAI embeddings API error ${res.status}: ${body}`);
-    }
-
-    const data = await res.json();
-    const embedding = data?.data?.[0]?.embedding;
-    if (!Array.isArray(embedding)) {
-      throw new Error("Invalid embedding response from OpenAI — missing data[0].embedding");
-    }
-    return embedding as number[];
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error(`OpenAI request timeout exceeded (${OPENAI_TIMEOUT_MS}ms)`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+      { maxRetries: 2, baseDelayMs: 100, maxDelayMs: 1000 }
+    );
+  });
 }
 
 async function keywordSearch(
