@@ -7,7 +7,7 @@ const DEFAULT_QUERY = 'mind-blowing psychological mind-bending thriller';
 
 async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; quickPicks: QuickPick[] }> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error('[HomePage SSR] Missing Supabase env vars');
+    console.error('[HomePage SSR] Missing Supabase env vars, skipping SSR fetch');
     return { match: null, quickPicks: [] };
   }
 
@@ -19,7 +19,7 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
 
     // Cache-bust to avoid stale embedding results
     const cacheKey = `${Date.now()}-${Math.random()}`;
-    console.log('[HomePage SSR] Calling semantic-search for:', DEFAULT_QUERY.slice(0, 30) + '...');
+    console.log('[HomePage SSR] Attempting semantic-search for:', DEFAULT_QUERY.slice(0, 30) + '...');
 
     const { data, error } = await db.functions.invoke(
       `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12&cb=${cacheKey}`,
@@ -27,17 +27,19 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
     );
 
     if (error) {
-      console.error('[HomePage SSR] semantic-search error:', error);
+      console.warn('[HomePage SSR] semantic-search unavailable (will use client-side fetch):', error?.message);
+      // Don't return error — let client-side fetch handle it
+      // This gracefully degrades if edge function has JWT/auth issues
       return { match: null, quickPicks: [] };
     }
 
     if (!data) {
-      console.error('[HomePage SSR] semantic-search returned no data');
+      console.warn('[HomePage SSR] semantic-search returned no data, skipping SSR');
       return { match: null, quickPicks: [] };
     }
 
     const results: MatchTitle[] = data.results ?? [];
-    console.log('[HomePage SSR] semantic-search returned', results.length, 'results');
+    console.log('[HomePage SSR] semantic-search succeeded:', results.length, 'results');
 
     if (!results.length) {
       console.warn('[HomePage SSR] No results from semantic-search');
