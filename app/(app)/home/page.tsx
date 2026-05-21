@@ -12,55 +12,46 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
   }
 
   try {
-    // Single client instance — used for both the functions.invoke() call and the
-    // DB enrichment query below.  The SDK handles publishable-key → JWT auth
-    // internally, avoiding the 401 that raw fetch() gets with sb_publishable__ keys.
+    // Single client instance for DB queries
     const db = createSupabasePublicClient();
 
-    // Cache-bust to avoid stale embedding results
-    const cacheKey = `${Date.now()}-${Math.random()}`;
-    console.log('[HomePage SSR] Attempting semantic-search for:', DEFAULT_QUERY.slice(0, 30) + '...');
+    // For SSR, use fast keyword search instead of waiting for semantic embeddings
+    // Semantic search will run on client-side where it's more reliable
+    console.log('[HomePage SSR] Using fast keyword-based search for initial hero');
 
-    const { data, error } = await db.functions.invoke(
-      `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12&cb=${cacheKey}`,
-      { method: 'GET', signal: AbortSignal.timeout(12000) }
-    );
+    const { data: results, error } = await db.rpc('get_titles_by_keywords', {
+      p_query: DEFAULT_QUERY,
+      p_media_type: null,
+      p_limit: 12,
+    });
 
     if (error) {
-      console.warn('[HomePage SSR] semantic-search unavailable (will use client-side fetch):', error?.message);
-      // Don't return error — let client-side fetch handle it
-      // This gracefully degrades if edge function has JWT/auth issues
+      console.warn('[HomePage SSR] Keyword search failed, letting client handle fetch:', error?.message);
       return { match: null, quickPicks: [] };
     }
 
-    if (!data) {
-      console.warn('[HomePage SSR] semantic-search returned no data, skipping SSR');
+    const titleResults: MatchTitle[] = (results ?? []) as MatchTitle[];
+    console.log('[HomePage SSR] Keyword search succeeded:', titleResults.length, 'results');
+
+    if (!titleResults.length) {
+      console.warn('[HomePage SSR] No results from keyword search');
       return { match: null, quickPicks: [] };
     }
 
-    const results: MatchTitle[] = data.results ?? [];
-    console.log('[HomePage SSR] semantic-search succeeded:', results.length, 'results');
-
-    if (!results.length) {
-      console.warn('[HomePage SSR] No results from semantic-search');
-      return { match: null, quickPicks: [] };
-    }
-
-    // Enrich with backdrop_path and runtime — semantic-search doesn't return these
-    const ids = results.map(r => r.id);
+    // Enrich with backdrop_path and runtime
+    const ids = titleResults.map(r => r.id);
     const { data: extras } = await db
       .from('titles')
       .select('id,backdrop_path,runtime')
       .in('id', ids);
     const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
-    for (const r of results) Object.assign(r, extrasMap[r.id] ?? {});
+    for (const r of titleResults) Object.assign(r, extrasMap[r.id] ?? {});
 
-    // Pick a random title from the top 3 matches so visitors see variety
-    // across page loads rather than always the same #1 result.
-    const topResultsCount = Math.min(results.length, 3);
+    // Pick a random title from the top 3 matches for variety across page loads
+    const topResultsCount = Math.min(titleResults.length, 3);
     const heroIdx = Math.floor(Math.random() * topResultsCount);
-    const heroResult = results[heroIdx];
-    const picksPool = results.filter(r => r.id !== heroResult.id);
+    const heroResult = titleResults[heroIdx];
+    const picksPool = titleResults.filter(r => r.id !== heroResult.id);
 
     console.log(`[HomePage SSR] Selected hero from position ${heroIdx} (top ${topResultsCount}):`, heroResult.title);
 

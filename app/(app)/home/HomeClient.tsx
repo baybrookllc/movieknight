@@ -97,14 +97,37 @@ async function semanticSearch(query: string, limit = 8): Promise<MatchTitle[]> {
       { method: 'GET', signal: AbortSignal.timeout(12000) }
     );
     if (error) {
-      console.error('[semanticSearch] invoke error:', error);
-      return [];
+      console.warn('[semanticSearch] semantic search failed, trying keyword fallback:', error?.message);
+      // Fallback to keyword search
+      return keywordSearch(query, limit);
     }
     const results = data?.results ?? [];
     console.log(`[semanticSearch] query="${query.slice(0, 30)}..." returned ${results.length} results`);
     return results;
   } catch (err) {
-    console.error('[semanticSearch] exception:', err);
+    console.warn('[semanticSearch] exception, trying keyword fallback:', err);
+    // Fallback to keyword search on any error
+    return keywordSearch(query, limit);
+  }
+}
+
+async function keywordSearch(query: string, limit = 8): Promise<MatchTitle[]> {
+  try {
+    console.log('[keywordSearch] Falling back to keyword search for:', query.slice(0, 30) + '...');
+    const { data, error } = await supabase.rpc('get_titles_by_keywords', {
+      p_query: query,
+      p_media_type: null,
+      p_limit: limit,
+    });
+    if (error) {
+      console.error('[keywordSearch] error:', error);
+      return [];
+    }
+    const results = (data ?? []) as MatchTitle[];
+    console.log('[keywordSearch] returned', results.length, 'results');
+    return results;
+  } catch (err) {
+    console.error('[keywordSearch] exception:', err);
     return [];
   }
 }
@@ -366,14 +389,15 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
   useEffect(() => {
     if (!loading && !match && !loadError) return;
 
-    // If stuck loading for more than 20 seconds, show error
+    // If stuck loading for more than 15 seconds, show error
+    // (keyword fallback should complete within 5-10s, so this is a safety net)
     const timeout = setTimeout(() => {
       if (loading && !match && !loadError) {
-        console.error('[HomeClient] Recommendation load timeout after 20s');
+        console.error('[HomeClient] Recommendation load timeout after 15s');
         setLoading(false);
         setLoadError('Taking too long to find recommendations. Please refresh the page.');
       }
-    }, 20000);
+    }, 15000);
 
     return () => clearTimeout(timeout);
   }, [loading, match, loadError]);
