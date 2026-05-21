@@ -42,9 +42,10 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Complete Monitoring Stack)  
+**Date:** 2026-05-21 (Complete Monitoring Stack + Deployment)  
 **Branch:** master  
-**Last commit:** `fd06b92` (comprehensive health check workflow + external monitoring)
+**Last commit:** `993dabc` (version bump to v5.8, production live)  
+**Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 17:30:00
 
 ### ✅ Completed (All Four Tasks)
 
@@ -80,10 +81,30 @@
 
 - None. All four tasks completed successfully without errors.
 
-### 📋 Optional Next Steps
+### 📋 Final Commits (This Session)
+
+- `993dabc` — chore: Update version to v5.8 and build date (production live)
+- `03ae3b0` — fix: Resolve comment syntax error in cron health-check route
+- `fd06b92` — feat: Enhance health-check workflow with external monitoring + alerts
+- `5da2086` — feat: Configure GitHub Actions for health-monitor cron (*/5 * * * *)
+- `99bd749` — feat: Add Vercel cron job for health-monitor (*/5 * * * *)
+- `5d87f3e` — docs: Update CLAUDE.md - All 4 tasks COMPLETE
+
+### 📋 Production Checklist
+
+✅ All 4 tasks delivered  
+✅ Zero build errors  
+✅ All code tested (GitHub Actions workflow passed)  
+✅ Version updated (v5.8, 2026-05-21 17:30:00)  
+✅ Production deployment live at https://movieknight.ca  
+✅ Health monitoring active (every 5 minutes via GitHub Actions)  
+✅ External endpoint monitoring (3-layer: external HTTP + DB + TMDB)  
+✅ All secrets configured (HEALTH_MONITOR_URL, MONITOR_SECRET)  
+
+### 📋 Optional Enhancements
 
 1. **Add email notifications** — Configure GitHub Actions to email on workflow failure
 2. **Set SLACK_WEBHOOK_URL** — If Slack integration desired: `supabase secrets set SLACK_WEBHOOK_URL=<webhook>` (from Slack Incoming Webhooks app)
 3. **Manual UptimeRobot setup** — Optional: uptimerobot.com for additional redundant external monitoring
-4. **Dashboard integration** — Consider GitHub Actions status badge: `[![Health Check](https://github.com/baybrookllc/movieknight/actions/workflows/health-check.yml/badge.svg)](https://github.com/baybrookllc/movieknight/actions/workflows/health-check.yml)` in README
+4. **Dashboard integration** — Consider GitHub Actions status badge in README: `[![Health Check](https://github.com/baybrookllc/movieknight/actions/workflows/health-check.yml/badge.svg)](https://github.com/baybrookllc/movieknight/actions/workflows/health-check.yml)`
 
