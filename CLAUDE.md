@@ -44,10 +44,10 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Bug Fix: Home Page Infinite Spinner + Same Title Issue)  
+**Date:** 2026-05-21 (Bug Fix: Home Page + Timeout Issues)  
 **Branch:** master  
-**Last commit:** `4e99e9f` (Fix home page infinite spinner and same-title issues)  
-**Production Status:** 🟢 LIVE — v5.8 · Building with fixes
+**Last commit:** `71a3e0a` (SSR graceful degradation when semantic-search unavailable)  
+**Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 18:45:00 · All fixes deployed
 
 ### ✅ Completed (Bug Fix + Previous Tasks)
 
@@ -97,13 +97,24 @@
 **Files:** `app/(app)/home/HomeClient.tsx`, `app/(app)/home/page.tsx`  
 **Build:** ✓ Compiled successfully
 
-### 🔴 Issues Identified
+### 🔴 Issues Identified & Resolved
 
-- None. All previous tasks + critical bug fix complete.
+- **Semantic-search JWT timeout issue** (FIXED):
+  - Root cause: JWT token generation during SSR had issues with Supabase edge function
+  - Fix 1: Increased timeouts — 5s→12s (SSR), 8s→12s (client), 15s→20s (safety net)
+  - Fix 2: SSR graceful degradation — when semantic-search fails, return null and let client handle fetch
+  - Result: Home page now shows content via client-side fetch even if SSR fails
+  - Commits: `a62cf49` (timeout increase), `71a3e0a` (SSR graceful degradation)
 
 ### 📋 Final Commits (This Session)
 
-- `4e99e9f` — fix: Home page infinite spinner + same-title caching issues (cache-busting, timeouts, error UI)
+**Bug Fix Session (2026-05-21):**
+- `71a3e0a` — fix: SSR graceful degradation when semantic-search unavailable (handles JWT timeout)
+- `a62cf49` — fix: Increase semantic-search timeout thresholds (5s→12s SSR, 15s→20s safety net)
+- `2918181` — fix: Home page infinite spinner + same-title caching issues (cache-busting, error UI)
+- `bbbe771` — chore: Update version timestamp to 2026-05-21 18:45:00
+
+**Previous Session (2026-05-20):**
 - `993dabc` — chore: Update version to v5.8 and build date (production live)
 - `03ae3b0` — fix: Resolve comment syntax error in cron health-check route
 - `fd06b92` — feat: Enhance health-check workflow with external monitoring + alerts
@@ -114,15 +125,18 @@
 ### 📋 Production Checklist
 
 ✅ All 4 tasks delivered  
-✅ Critical bug fix (home page spinner + same-title caching)  
-✅ Zero build errors (build passed successfully)  
+✅ Critical bug fixes deployed:
+  - Infinite spinner issue (15s→20s timeout safety net)
+  - Same-title caching issue (cache-busting with nonce)
+  - JWT timeout issue (SSR graceful degradation)
+✅ Zero build errors (all deployments successful)  
 ✅ All code tested  
-✅ Version: v5.8, 2026-05-21 17:30:00  
-✅ Production live at https://movieknight.ca  
+✅ Version: v5.8, 2026-05-21 18:45:00 (updated with deployment)
+✅ Production live at https://movieknight.ca (deployment: dpl_Amxgp78qsNkJWdAvtbehFUixzbYW)
 ✅ Health monitoring: every 5 minutes via GitHub Actions  
 ✅ External monitoring: 3-layer (HTTP + DB + TMDB)  
-✅ Ready for deployment of bug fixes  
-✅ All secrets configured (HEALTH_MONITOR_URL, MONITOR_SECRET)  
+✅ All secrets configured and working  
+✅ Home page now has graceful degradation and improved timeouts  
 
 ### 📋 Optional Enhancements
 
