@@ -26,12 +26,16 @@ export async function checkRateLimit(
   const url = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const token = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
-  // FAIL CLOSED: If Upstash not configured, deny (don't allow all requests)
+  // FAIL OPEN when intentionally unconfigured. If Upstash env vars are absent
+  // we treat this as "no rate limiter wired up" rather than "block everyone",
+  // because failing closed makes every endpoint return 429 to all callers and
+  // breaks the entire app. Network/HTTP errors below still fail closed so a
+  // misbehaving Upstash cannot be used to bypass real rate limits.
   if (!url || !token) {
-    console.error(
-      "[checkRateLimit] UPSTASH env vars not set — failing closed (denying all requests)"
+    console.warn(
+      "[checkRateLimit] UPSTASH env vars not set — allowing request (rate limiter disabled)"
     );
-    return false;
+    return true;
   }
 
   try {

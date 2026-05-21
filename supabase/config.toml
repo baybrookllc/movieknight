@@ -1,0 +1,35 @@
+# Supabase project configuration
+# Generated to control edge function JWT verification.
+
+project_id = "nwvliipxqedueskhxdym"
+
+[functions.semantic-search]
+# Public endpoint — homepage hero recommendations called by anonymous guests.
+# JWT verification must be off so unauthenticated callers reach the function.
+verify_jwt = false
+
+[functions.tmdb-cache]
+# Read-only TMDB proxy — used by guest hero trailer fetch.
+verify_jwt = false
+
+[functions.health-monitor]
+# Internal cron — invoked by Supabase scheduler with service-role.
+verify_jwt = true
+
+[functions.generate-embedding]
+verify_jwt = true
+
+[functions.notify-watchlist]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.dtdd-fetch]
+verify_jwt = true
+
+[functions.tv-auth]
+verify_jwt = true
+
+[functions.tv-seasons]
+verify_jwt = false
