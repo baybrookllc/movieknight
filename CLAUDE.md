@@ -42,32 +42,44 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-20  
+**Date:** 2026-05-21 (Provisioning Session)  
 **Branch:** master  
-**Last commit:** `d3e97c1`
+**Last commit:** `d3e97c1` (all code work complete from prior session)
 
-### ✅ Completed
+### ✅ Completed (This Session — Provisioning)
 
-- **Full 95% uptime stack** — all code written, tested (build clean), and committed.
-- **`/lib/retry.ts`** + **`/supabase/functions/_shared/retry.ts`**: Exponential backoff + jitter. `isRetryableError()` extracted; JSDoc corrected (retryWithBackoff retries network/timeout only; 429/503 is retryFetch's concern).
-- **`/supabase/functions/_shared/circuit-breaker.ts`**: CLOSED→OPEN→HALF_OPEN. 3-failure threshold, 30s reset, 60s window.
-- **`/supabase/functions/_shared/openai-embeddings.ts`**: Single source for OpenAI embedding calls — timeout + retry + circuit breaker. Used by semantic-search and generate-embedding.
-- **`/supabase/functions/_shared/request-utils.ts`**: Shared `getClientIp()` for edge functions.
-- **`/app/api/health/route.ts`**: `GET /api/health` — checks env vars + Supabase DB ping. Returns 200/503.
-- **`/supabase/functions/health-monitor/index.ts`**: Cron edge fn (*/5 * * * *). Parallel DB + app + TMDB checks. Slack Block Kit alert on degradation.
-- **`/supabase/migrations/20260520000001_keyword_search_rpc.sql`**: `get_titles_by_keywords` RPC (GIN index + plainto_tsquery). semantic-search fallback uses it instead of client-side filter.
+- **Task 1: Provision Upstash Redis** — ✅ COMPLETE
+  - Via Vercel Marketplace → Upstash for Redis → Free tier
+  - Database: `upstash-kv-red-coin` (ID: 8754fe70-7869-4e36-9406-6e8718b76945)
+  - Connected to cinestream-app project with Production environment
+  - Environment variables auto-injected: `STORAGE_URL`, `STORAGE_REST_API_TOKEN`
+  - Status: Available (verified via Vercel integration console)
+
+- **Task 2: Deploy health-monitor edge function** — ✅ MOSTLY COMPLETE
+  - Edge function deployed: `supabase functions deploy health-monitor` ✅
+  - Executed successfully; function is ACTIVE (Version 1, deployed 2026-05-21 15:24:19)
+  - MONITOR_SECRET set: `2615cd72d48dc8a33ed5559150e16929` ✅
+  - ⏳ Pending: Cron schedule configuration (*/5 * * * *) via Supabase Dashboard
+
+- **Task 3: Apply DB migration** — ✅ COMPLETE
+  - Migration `20260520000001_keyword_search_rpc` already applied to production
+  - Verified via `supabase migration list` (marked as applied on both local and remote)
+  - `get_titles_by_keywords` RPC with GIN index + tsvector live in production
+
+- **Task 4: Set up UptimeRobot** — ⏳ BLOCKED
+  - Browser navigation restriction prevents access to uptimerobot.com
+  - Requires manual setup: https://uptimerobot.com → New Monitor → HTTP → `https://movieknight.ca/api/health` → 5-min interval
 
 ### 🔴 Issues Identified
 
-- **Upstash not provisioned**: Rate limiters fall back to in-memory until Vercel Marketplace → Upstash Redis is connected.
-- **health-monitor not deployed**: Needs `supabase functions deploy health-monitor` + secrets set.
-- **Migration not applied**: `get_titles_by_keywords` RPC is committed but not yet in production DB — `supabase db push` required.
-- **UptimeRobot not configured**: Manual step — no code needed, just account setup.
+- **health-monitor cron schedule not configured** — Function deployed but cron trigger not active. Requires Supabase Dashboard: Edge Functions → Schedules → set `*/5 * * * *` for health-monitor.
+- **SLACK_WEBHOOK_URL not set** — Slack alerts will not fire until this secret is configured. Health-monitor will still run and monitor health (code defaults to empty string and skips Slack on line 51).
+- **UptimeRobot setup requires browser** — Manual account creation + monitor setup needed (cannot complete programmatically in this session).
 
 ### 📋 Next Session
 
-1. **Provision Upstash Redis** — Vercel Marketplace → Upstash → install to project. Env vars auto-inject; rate limiters activate with no code changes.
-2. **Deploy monitoring** — `supabase secrets set MONITOR_SECRET=<random32> SLACK_WEBHOOK_URL=<webhook>` then `supabase functions deploy health-monitor`.
-3. **Apply DB migration** — `supabase db push` (deploys `get_titles_by_keywords` RPC + GIN index to production).
-4. **Set up UptimeRobot** — uptimerobot.com → New Monitor → HTTP → `https://movieknight.ca/api/health` → 5-min interval → email alert.
+1. **Configure health-monitor cron schedule** — Supabase Dashboard → Edge Functions → Schedules → health-monitor → `*/5 * * * *`
+2. **(Optional) Set SLACK_WEBHOOK_URL** — If Slack alerts desired: `supabase secrets set SLACK_WEBHOOK_URL=<your-webhook>` (from Slack Incoming Webhooks app)
+3. **Set up UptimeRobot** (manual) — https://uptimerobot.com → Sign up (free) → Add HTTP Monitor → URL: `https://movieknight.ca/api/health` → Interval: 5 minutes → Alert: email
+4. **Verify health-monitor cron execution** — Check Supabase Edge Function logs after 5 minutes to confirm first execution
 
