@@ -52,24 +52,30 @@
 - **`/lib/retry.ts`**: Node.js retry utility with exponential backoff + jitter. Default: 3 retries, 100ms-5000ms backoff, 2x multiplier. Retries on: AbortError, network errors. Does NOT retry: app errors, 4xx auth.
 - **`/supabase/functions/_shared/retry.ts`**: Deno-compatible retry utility (identical logic for edge functions)
 - **`/supabase/functions/_shared/circuit-breaker.ts`**: Circuit breaker for Deno. States: CLOSED→OPEN→HALF_OPEN. Default: 3 failures to open, 30s reset, 60s window.
-- **Integration**:
-  - `/app/api/claude/ask/route.ts`: Anthropic API with retry (2 retries, 100ms-1s backoff)
-  - `/supabase/functions/semantic-search/index.ts`: OpenAI embeddings + circuit breaker + keyword fallback
-  - `/supabase/functions/generate-embedding/index.ts`: OpenAI embeddings + circuit breaker + retry logic
-- **Build**: ✓ Compiled successfully, TypeScript clean, 20/20 pages. Commit: `577047f`
+- **Integration**: claude/ask (Anthropic API), semantic-search (OpenAI + circuit breaker), generate-embedding (OpenAI + circuit breaker)
+- Commit: `577047f`
+
+#### Phase 3: Monitoring Infrastructure (100% complete)
+- **`/app/api/health`**: Health check endpoint for UptimeRobot to poll (`GET /api/health`). Checks: env vars, Supabase DB ping. Returns 200/503 with JSON payload.
+- **`/supabase/functions/health-monitor`**: Cron edge function (every 5 min). Checks: DB, app health endpoint, TMDB. Sends Slack alerts on degradation. Deploys via `supabase functions deploy health-monitor`.
+- **`/supabase/migrations/20260520000001_keyword_search_rpc.sql`**: `get_titles_by_keywords(p_query, p_media_type, p_limit)` RPC using GIN + `to_tsvector` / `plainto_tsquery`. Server-side full-text search — replaces client-side title filtering in semantic-search fallback.
+- semantic-search `keywordSearch()` now calls `get_titles_by_keywords` RPC instead of fetching all titles.
+- **Build**: ✓ Compiled successfully, TypeScript clean, 20/20 pages.
 
 ### 🔴 Issues Identified
 
-- **Upstash env vars not yet configured**: Rate limiters fall back to in-memory. Provision via Vercel Marketplace.
-- **Semantic search keyword fallback** fetches all titles client-side — should use `to_tsvector` RPC. Low urgency.
-- **OpenAI circuit breaker** will need monitoring in production to tune thresholds (failureThreshold, resetTimeoutMs).
+- **Upstash env vars not yet configured**: Rate limiters fall back to in-memory. Provision via Vercel Marketplace → Upstash.
+- **`MONITOR_SECRET` / `SLACK_WEBHOOK_URL`**: Must be set as Supabase secrets before health-monitor cron runs. Use: `supabase secrets set MONITOR_SECRET=<val> SLACK_WEBHOOK_URL=<webhook>`.
+- **UptimeRobot**: Needs manual setup at uptimerobot.com — add HTTP monitor pointing to `https://movieknight.ca/api/health`.
+- **OpenAI circuit breaker** thresholds may need tuning after production observation (currently: 3 failures / 30s reset).
 
 ### 📋 Next Session
 
-1. **Deploy Phase 1 & 2 to production** — Push to Vercel, verify timeouts and retries work end-to-end.
-2. **Provision Upstash Redis** — Vercel Marketplace → add Upstash. Rate limiters activate automatically.
-3. **Optimize semantic search keyword fallback** — Create `get_titles_by_keywords` RPC using `to_tsvector` instead of client-side filtering.
-4. **(Phase 3)** Implement monitoring: Grafana Cloud free tier (logs), UptimeRobot (uptime %), Slack webhooks (alerts).
+1. **Provision Upstash Redis** — Vercel Marketplace → Upstash Redis → install. Auto-injects env vars; rate limiters activate.
+2. **Deploy health-monitor edge function** — `supabase functions deploy health-monitor` + set secrets: `MONITOR_SECRET`, `SLACK_WEBHOOK_URL`.
+3. **Apply migration** — `supabase db push` to deploy `get_titles_by_keywords` RPC to production.
+4. **Set up UptimeRobot** — Free account at uptimerobot.com → HTTP monitor → `https://movieknight.ca/api/health` → 5-min interval → alert to email.
+5. **Apply keyword search migration to production** — will activate server-side FTS in semantic-search fallback.
 
-**Ready for:** Production deployment. 95% uptime baseline established via timeout + retry + circuit breaker pattern.
+**Ready for:** All code complete and committed. Remaining work is external service provisioning (Upstash, Slack, UptimeRobot).
 

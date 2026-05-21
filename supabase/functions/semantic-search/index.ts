@@ -206,40 +206,20 @@ async function keywordSearch(
   mediaType: string | null,
   limit: number
 ): Promise<Response> {
-  // Fallback: keyword search on title, overview, and other text fields
-  const keywords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-
-  let sql = supabase.from("titles").select(
-    "id, title, overview, poster_path, media_type, release_date, vote_average, runtime"
-  );
-
-  // Add media_type filter if specified
-  if (mediaType === "movie" || mediaType === "tv") {
-    sql = sql.eq("media_type", mediaType);
-  }
-
-  const { data: titles, error } = await sql.limit(limit);
+  // Server-side full-text search via get_titles_by_keywords RPC (uses GIN + tsvector)
+  const { data: results, error } = await supabase.rpc("get_titles_by_keywords", {
+    p_query: query,
+    p_media_type: (mediaType === "movie" || mediaType === "tv") ? mediaType : null,
+    p_limit: limit,
+  });
 
   if (error) {
+    console.error("[semantic-search] keyword RPC error:", error);
     throw error;
   }
 
-  // Client-side keyword matching: rank results by number of keyword matches
-  const scored = (titles ?? [])
-    .map((t) => {
-      const titleLower = (t.title ?? "").toLowerCase();
-      const overviewLower = (t.overview ?? "").toLowerCase();
-      const matchCount = keywords.filter(
-        (kw) => titleLower.includes(kw) || overviewLower.includes(kw)
-      ).length;
-      return { ...t, similarity: matchCount / Math.max(keywords.length, 1) };
-    })
-    .filter((t) => t.similarity > 0) // Only include titles with at least one keyword match
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, limit);
-
   return new Response(
-    JSON.stringify({ results: scored, fallback: true }),
+    JSON.stringify({ results: results ?? [], fallback: true }),
     {
       status: 200,
       headers: { "Content-Type": "application/json" },
