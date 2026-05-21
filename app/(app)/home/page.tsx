@@ -23,7 +23,7 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
 
     const { data, error } = await db.functions.invoke(
       `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12&cb=${cacheKey}`,
-      { method: 'GET', signal: AbortSignal.timeout(5000) }
+      { method: 'GET', signal: AbortSignal.timeout(12000) }
     );
 
     if (error) {

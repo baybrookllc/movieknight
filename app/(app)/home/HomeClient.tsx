@@ -94,7 +94,7 @@ async function semanticSearch(query: string, limit = 8): Promise<MatchTitle[]> {
     // a raw Bearer token in fetch().
     const { data, error } = await supabase.functions.invoke(
       `semantic-search?query=${encodeURIComponent(query)}&limit=${limit}&cb=${cacheKey}`,
-      { method: 'GET', signal: AbortSignal.timeout(8000) }
+      { method: 'GET', signal: AbortSignal.timeout(12000) }
     );
     if (error) {
       console.error('[semanticSearch] invoke error:', error);
@@ -366,14 +366,14 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
   useEffect(() => {
     if (!loading && !match && !loadError) return;
 
-    // If stuck loading for more than 15 seconds, show error
+    // If stuck loading for more than 20 seconds, show error
     const timeout = setTimeout(() => {
       if (loading && !match && !loadError) {
-        console.error('[HomeClient] Recommendation load timeout after 15s');
+        console.error('[HomeClient] Recommendation load timeout after 20s');
         setLoading(false);
         setLoadError('Taking too long to find recommendations. Please refresh the page.');
       }
-    }, 15000);
+    }, 20000);
 
     return () => clearTimeout(timeout);
   }, [loading, match, loadError]);
