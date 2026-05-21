@@ -7,6 +7,7 @@ const DEFAULT_QUERY = 'mind-blowing psychological mind-bending thriller';
 
 async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; quickPicks: QuickPick[] }> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error('[HomePage SSR] Missing Supabase env vars');
     return { match: null, quickPicks: [] };
   }
 
@@ -15,15 +16,33 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
     // DB enrichment query below.  The SDK handles publishable-key → JWT auth
     // internally, avoiding the 401 that raw fetch() gets with sb_publishable__ keys.
     const db = createSupabasePublicClient();
+
+    // Cache-bust to avoid stale embedding results
+    const cacheKey = `${Date.now()}-${Math.random()}`;
+    console.log('[HomePage SSR] Calling semantic-search for:', DEFAULT_QUERY.slice(0, 30) + '...');
+
     const { data, error } = await db.functions.invoke(
-      `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12`,
+      `semantic-search?query=${encodeURIComponent(DEFAULT_QUERY)}&limit=12&cb=${cacheKey}`,
       { method: 'GET', signal: AbortSignal.timeout(5000) }
     );
 
-    if (error || !data) return { match: null, quickPicks: [] };
+    if (error) {
+      console.error('[HomePage SSR] semantic-search error:', error);
+      return { match: null, quickPicks: [] };
+    }
+
+    if (!data) {
+      console.error('[HomePage SSR] semantic-search returned no data');
+      return { match: null, quickPicks: [] };
+    }
 
     const results: MatchTitle[] = data.results ?? [];
-    if (!results.length) return { match: null, quickPicks: [] };
+    console.log('[HomePage SSR] semantic-search returned', results.length, 'results');
+
+    if (!results.length) {
+      console.warn('[HomePage SSR] No results from semantic-search');
+      return { match: null, quickPicks: [] };
+    }
 
     // Enrich with backdrop_path and runtime — semantic-search doesn't return these
     const ids = results.map(r => r.id);
@@ -36,9 +55,12 @@ async function getDefaultRecommendation(): Promise<{ match: MatchTitle | null; q
 
     // Pick a random title from the top 3 matches so visitors see variety
     // across page loads rather than always the same #1 result.
-    const heroIdx = Math.floor(Math.random() * Math.min(results.length, 3));
+    const topResultsCount = Math.min(results.length, 3);
+    const heroIdx = Math.floor(Math.random() * topResultsCount);
     const heroResult = results[heroIdx];
     const picksPool = results.filter(r => r.id !== heroResult.id);
+
+    console.log(`[HomePage SSR] Selected hero from position ${heroIdx} (top ${topResultsCount}):`, heroResult.title);
 
     return {
       match: heroResult,

@@ -87,16 +87,26 @@ function fmtRuntime(mins?: number) {
 
 async function semanticSearch(query: string, limit = 8): Promise<MatchTitle[]> {
   try {
+    // Cache-bust with timestamp to avoid stale embedding caches
+    const cacheKey = `${Date.now()}-${Math.random()}`;
     // Use supabase.functions.invoke() so the SDK handles publishable-key → JWT
     // auth internally, avoiding the 401 we get when passing sb_publishable__ as
     // a raw Bearer token in fetch().
     const { data, error } = await supabase.functions.invoke(
-      `semantic-search?query=${encodeURIComponent(query)}&limit=${limit}`,
+      `semantic-search?query=${encodeURIComponent(query)}&limit=${limit}&cb=${cacheKey}`,
       { method: 'GET', signal: AbortSignal.timeout(8000) }
     );
-    if (error) return [];
-    return data?.results ?? [];
-  } catch { return []; }
+    if (error) {
+      console.error('[semanticSearch] invoke error:', error);
+      return [];
+    }
+    const results = data?.results ?? [];
+    console.log(`[semanticSearch] query="${query.slice(0, 30)}..." returned ${results.length} results`);
+    return results;
+  } catch (err) {
+    console.error('[semanticSearch] exception:', err);
+    return [];
+  }
 }
 
 /* ── Right Sidebar ─────────────────────────────────────────────── */
@@ -269,6 +279,7 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
   const [quickPicks, setQuickPicks] = useState<QuickPick[]>(initialQuickPicks);
   // Start as loaded when SSR provided data; otherwise show spinner until client fetch
   const [loading, setLoading] = useState(!initialMatch);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [showTrailer, setShowTrailer] = useState(false);
@@ -289,20 +300,27 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
 
   const loadRecommendation = useCallback(async (moodIdx: number, skip?: Set<string>) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const results = await semanticSearch(MOODS[moodIdx].query, 12);
 
+      if (results.length === 0) {
+        console.warn('[HomeClient] semantic search returned no results for mood:', MOODS[moodIdx].label);
+        setMatch(null);
+        setQuickPicks([]);
+        setLoadError('No recommendations found. Try a different mood.');
+        return;
+      }
+
       // Enrich with backdrop_path and runtime from DB (semantic-search doesn't return these)
-      if (results.length > 0) {
-        const ids = results.map(r => r.id);
-        const { data: extras } = await supabase
-          .from('titles')
-          .select('id,backdrop_path,runtime')
-          .in('id', ids);
-        const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
-        for (const r of results) {
-          Object.assign(r, extrasMap[r.id] ?? {});
-        }
+      const ids = results.map(r => r.id);
+      const { data: extras } = await supabase
+        .from('titles')
+        .select('id,backdrop_path,runtime')
+        .in('id', ids);
+      const extrasMap = Object.fromEntries((extras ?? []).map(e => [e.id, e]));
+      for (const r of results) {
+        Object.assign(r, extrasMap[r.id] ?? {});
       }
 
       const skipSet = skip ?? dismissed;
@@ -311,6 +329,7 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
       setMatch(topMatch);
       setQuickPicks(filtered.slice(1, 8));
       setTrailerKey(null);
+      console.log('[HomeClient] recommendation loaded:', topMatch?.title);
 
       // Fetch trailer for the top match in background
       if (topMatch) {
@@ -323,6 +342,9 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
       }
     } catch (err) {
       console.error('[HomeClient] loadRecommendation failed:', err);
+      setMatch(null);
+      setQuickPicks([]);
+      setLoadError('Failed to load recommendation. Please try again.');
     } finally {
       // Always clear the spinner, even on error — prevents infinite loading state
       setLoading(false);
@@ -331,10 +353,30 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
 
   useEffect(() => {
     // SSR already provided data for the default mood — skip redundant client fetch
-    if (hasInitialData.current) return;
+    if (hasInitialData.current) {
+      console.log('[HomeClient] SSR provided initial data, skipping client fetch');
+      return;
+    }
+    console.log('[HomeClient] No SSR data, fetching client-side for mood:', MOODS[activeMood].label);
     loadRecommendation(activeMood);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Safety net: if we're in an error state and stay there for 30s, reset
+  useEffect(() => {
+    if (!loading && !match && !loadError) return;
+
+    // If stuck loading for more than 15 seconds, show error
+    const timeout = setTimeout(() => {
+      if (loading && !match && !loadError) {
+        console.error('[HomeClient] Recommendation load timeout after 15s');
+        setLoading(false);
+        setLoadError('Taking too long to find recommendations. Please refresh the page.');
+      }
+    }, 15000);
+
+    return () => clearTimeout(timeout);
+  }, [loading, match, loadError]);
 
   const handleMood = (idx: number) => {
     if (idx === activeMood) return;
@@ -409,8 +451,34 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            flexDirection: 'column',
+            gap: 16,
           }}>
             <div className="spinner" />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Finding your perfect match...</span>
+          </div>
+        ) : loadError ? (
+          <div style={{
+            height: 200,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-error, var(--border))',
+            borderRadius: 'var(--radius-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            gap: 12,
+            padding: 24,
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{loadError}</div>
+            <button
+              className="btn btn-outline"
+              onClick={() => loadRecommendation(activeMood)}
+              style={{ gap: 6, marginTop: 8 }}
+            >
+              Try Again
+            </button>
           </div>
         ) : match ? (
           <div className="match-card">

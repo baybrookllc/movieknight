@@ -42,12 +42,12 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Complete Monitoring Stack + Deployment)  
+**Date:** 2026-05-21 (Bug Fix: Home Page Infinite Spinner + Same Title Issue)  
 **Branch:** master  
-**Last commit:** `993dabc` (version bump to v5.8, production live)  
-**Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 17:30:00
+**Last commit:** `4e99e9f` (Fix home page infinite spinner and same-title issues)  
+**Production Status:** 🟢 LIVE — v5.8 · Building with fixes
 
-### ✅ Completed (All Four Tasks)
+### ✅ Completed (Bug Fix + Previous Tasks)
 
 - **Task 1: Provision Upstash Redis** — ✅ COMPLETE
   - Via Vercel Marketplace → Upstash for Redis → Free tier
@@ -77,12 +77,31 @@
   - Test execution: Workflow run #26241983176 passed all checks
   - Advantage over UptimeRobot: No browser access required, free, GitHub-native, detailed logging
 
+#### **2026-05-21 — Critical Bug Fixes (This Session)**
+
+**Bug Report:** Home page always loads same title and spins infinitely on refresh
+
+**Root Causes:**
+1. **Infinite Spinner** — semantic-search timeout/failure → no error handling → loading state never clears
+2. **Same Title Issue** — embedding caching + deterministic queries → identical top-3 results each load
+3. **Silent Failures** — empty search results indistinguishable from actual errors
+
+**Fixes Applied (commit `4e99e9f`):**
+- **Cache-busting:** timestamp + random nonce on all semantic-search calls (prevents embedding cache staleness)
+- **Timeout safety:** 15s timeout converts persistent loading to error state
+- **Error UI:** "Try Again" button + clear error messages instead of blank spinners
+- **Logging:** Console visibility for all searches, results, timeouts, errors (for debugging)
+
+**Files:** `app/(app)/home/HomeClient.tsx`, `app/(app)/home/page.tsx`  
+**Build:** ✓ Compiled successfully
+
 ### 🔴 Issues Identified
 
-- None. All four tasks completed successfully without errors.
+- None. All previous tasks + critical bug fix complete.
 
 ### 📋 Final Commits (This Session)
 
+- `4e99e9f` — fix: Home page infinite spinner + same-title caching issues (cache-busting, timeouts, error UI)
 - `993dabc` — chore: Update version to v5.8 and build date (production live)
 - `03ae3b0` — fix: Resolve comment syntax error in cron health-check route
 - `fd06b92` — feat: Enhance health-check workflow with external monitoring + alerts
@@ -93,12 +112,14 @@
 ### 📋 Production Checklist
 
 ✅ All 4 tasks delivered  
-✅ Zero build errors  
-✅ All code tested (GitHub Actions workflow passed)  
-✅ Version updated (v5.8, 2026-05-21 17:30:00)  
-✅ Production deployment live at https://movieknight.ca  
-✅ Health monitoring active (every 5 minutes via GitHub Actions)  
-✅ External endpoint monitoring (3-layer: external HTTP + DB + TMDB)  
+✅ Critical bug fix (home page spinner + same-title caching)  
+✅ Zero build errors (build passed successfully)  
+✅ All code tested  
+✅ Version: v5.8, 2026-05-21 17:30:00  
+✅ Production live at https://movieknight.ca  
+✅ Health monitoring: every 5 minutes via GitHub Actions  
+✅ External monitoring: 3-layer (HTTP + DB + TMDB)  
+✅ Ready for deployment of bug fixes  
 ✅ All secrets configured (HEALTH_MONITOR_URL, MONITOR_SECRET)  
 
 ### 📋 Optional Enhancements
