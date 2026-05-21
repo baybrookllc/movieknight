@@ -4,13 +4,34 @@ on:
   schedule:
     # Run every 5 minutes
     - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   health-check:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Trigger health-monitor
+      - name: External health check (movieknight.ca/api/health)
+        id: external-check
+        run: |
+          response=$(curl -s -w "\n%{http_code}" https://movieknight.ca/api/health --max-time 10)
+          status=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "HTTP_STATUS=$status" >> $GITHUB_OUTPUT
+          echo "RESPONSE_BODY<<EOF" >> $GITHUB_OUTPUT
+          echo "$body" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "Response status: $status"
+          echo "Response body: $body"
+
+          if [[ "$status" != "200" ]]; then
+            exit 1
+          fi
+
+      - name: Trigger health-monitor edge function
+        id: health-monitor
+        continue-on-error: true
         run: |
           curl -X POST "${{ secrets.HEALTH_MONITOR_URL }}" \
             -H "Authorization: Bearer ${{ secrets.MONITOR_SECRET }}" \
@@ -19,6 +40,24 @@ jobs:
             --retry 2 \
             -w "\nHTTP Status: %{http_code}\n"
 
-      - name: Log health check
-        if: always()
-        run: echo "Health check completed at $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Send failure alert
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const externalStatus = '${{ steps.external-check.outputs.HTTP_STATUS }}';
+            const externalBody = `${{ steps.external-check.outputs.RESPONSE_BODY }}`;
+
+            console.error('❌ Health check FAILED');
+            console.error(`External endpoint status: ${externalStatus}`);
+            console.error(`External endpoint response: ${externalBody}`);
+
+            // Send notification to workflow logs
+            core.setFailed(`Health check failed. External endpoint returned: ${externalStatus}`);
+
+      - name: Log success
+        if: success()
+        run: |
+          echo "✅ Health checks PASSED at $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "External: ${{ steps.external-check.outputs.HTTP_STATUS }}"
+          echo "Response: ${{ steps.external-check.outputs.RESPONSE_BODY }}"
