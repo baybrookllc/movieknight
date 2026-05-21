@@ -218,7 +218,6 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
               signal: controller.signal,
             });
           } catch (err) {
-            clearTimeout(timeoutId);
             if (err instanceof Error && err.name === 'AbortError') {
               throw new Error('Claude request timeout (10s)');
             }

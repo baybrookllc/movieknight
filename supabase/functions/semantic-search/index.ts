@@ -9,34 +9,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
-import { retryWithBackoff } from "../_shared/retry.ts";
-import { CircuitBreaker } from "../_shared/circuit-breaker.ts";
+import { embedText } from "../_shared/openai-embeddings.ts";
+import { getClientIp } from "../_shared/request-utils.ts";
 
-const OPENAI_MODEL = "text-embedding-3-small";
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
-const OPENAI_TIMEOUT_MS = 8000; // 8 second timeout for OpenAI API
 
 const RL_MAX = 60;
 const RL_WINDOW_SECS = 60;
 
-// Circuit breaker for OpenAI to prevent cascading failures
-const openaiBreaker = new CircuitBreaker({
-  failureThreshold: 3,
-  resetTimeoutMs: 30000,
-  monitoringWindowMs: 60000,
-});
-
-function getClientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    "unknown"
-  );
-}
-
 Deno.serve(async (req: Request) => {
-  // ── CORS helpers scoped to this request ──────────────────────────
   const cors = makeCors(req);
   const json = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
@@ -44,7 +26,6 @@ Deno.serve(async (req: Request) => {
       headers: { ...cors, "Content-Type": "application/json" },
     });
 
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: cors });
   }
@@ -55,7 +36,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // ── Parse query params ────────────────────────────────────────────
     const url = new URL(req.url);
     const query = url.searchParams.get("query")?.trim();
     const mediaType = url.searchParams.get("media_type"); // "movie" | "tv" | null (both)
@@ -66,31 +46,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing required param: query" }, 400);
     }
 
-    // ── Init Supabase client (service role for RPC access) ────────────
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // ── Embed the user's query via OpenAI (with timeout + fallback) ────
-    let queryVector: number[] | null = null;
+    // Embed the query; fall back to keyword search on any OpenAI failure
+    let queryVector: number[];
     try {
       queryVector = await embedText(query);
     } catch (embedErr) {
-      const errMsg = String(embedErr);
-      // Fallback to keyword search on timeout or OpenAI error
-      if (
-        errMsg.includes("timeout") ||
-        errMsg.includes("OpenAI") ||
-        errMsg.includes("exceeded")
-      ) {
-        console.warn("[semantic-search] OpenAI timeout/error, falling back to keyword search:", errMsg);
-        return await keywordSearch(supabase, query, mediaType, matchLimit);
-      }
-      throw embedErr;
+      console.warn("[semantic-search] OpenAI error, falling back to keyword search:", String(embedErr));
+      return keywordSearch(supabase, query, mediaType, matchLimit);
     }
 
-    // ── Call match_titles() RPC ───────────────────────────────────────
     const { data: matches, error: rpcError } = await supabase.rpc("match_titles", {
       query_embedding: queryVector,
       match_threshold: 0.3,
@@ -100,105 +69,31 @@ Deno.serve(async (req: Request) => {
 
     if (rpcError) throw rpcError;
 
-    // ── Fetch full title metadata for matched IDs ─────────────────────
     const titleIds: string[] = (matches ?? []).map((m: { title_id: string }) => m.title_id);
+    if (titleIds.length === 0) return json({ results: [] });
 
-    if (titleIds.length === 0) {
-      return json({ results: [] });
-    }
+    const { data: titles, error: titlesError } = await supabase
+      .from("titles")
+      .select("id, title, overview, poster_path, media_type, release_date, vote_average, runtime")
+      .in("id", titleIds);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout on metadata fetch
+    if (titlesError) throw titlesError;
 
-    try {
-      const { data: titles, error: titlesError } = await supabase
-        .from("titles")
-        .select("id, title, overview, poster_path, media_type, release_date, vote_average, runtime")
-        .in("id", titleIds);
+    const similarityMap = new Map<string, number>(
+      (matches ?? []).map((m: { title_id: string; similarity: number }) => [m.title_id, m.similarity])
+    );
 
-      clearTimeout(timeoutId);
-      if (titlesError) throw titlesError;
+    const results = (titles ?? [])
+      .map((t) => ({ ...t, similarity: similarityMap.get(t.id) ?? 0 }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, matchLimit);
 
-      // ── Build similarity map and merge ───────────────────────────
-      const similarityMap = new Map<string, number>(
-        (matches ?? []).map((m: { title_id: string; similarity: number }) => [
-          m.title_id,
-          m.similarity,
-        ])
-      );
-
-      const results = (titles ?? [])
-        .map((t) => ({ ...t, similarity: similarityMap.get(t.id) ?? 0 }))
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, matchLimit);
-
-      return json({ results });
-    } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
-    }
+    return json({ results });
   } catch (err) {
     console.error("[semantic-search] error:", err);
     return json({ error: String(err) }, 500);
   }
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function embedText(text: string): Promise<number[]> {
-  const openaiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!openaiKey) throw new Error("OPENAI_API_KEY secret is not set");
-
-  // Use circuit breaker with retry logic for resilience
-  return openaiBreaker.execute(async () => {
-    return retryWithBackoff(
-      async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
-
-        try {
-          const res = await fetch("https://api.openai.com/v1/embeddings", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${openaiKey}`,
-            },
-            body: JSON.stringify({ model: OPENAI_MODEL, input: text }),
-            signal: controller.signal,
-          });
-
-          if (!res.ok) {
-            const body = await res.text();
-            // Retry on 429 or 503, throw immediately on 4xx auth errors
-            if (res.status === 429 || res.status === 503) {
-              throw new Error(`OpenAI API error ${res.status}: ${body}`);
-            }
-            throw new Error(`OpenAI embeddings API error ${res.status}: ${body}`);
-          }
-
-          const data = await res.json();
-          const embedding = data?.data?.[0]?.embedding;
-          if (!Array.isArray(embedding)) {
-            throw new Error(
-              "Invalid embedding response from OpenAI — missing data[0].embedding"
-            );
-          }
-          return embedding as number[];
-        } catch (err) {
-          if (err instanceof Error && err.name === "AbortError") {
-            throw new Error(
-              `OpenAI request timeout exceeded (${OPENAI_TIMEOUT_MS}ms)`
-            );
-          }
-          throw err;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      },
-      { maxRetries: 2, baseDelayMs: 100, maxDelayMs: 1000 }
-    );
-  });
-}
 
 async function keywordSearch(
   supabase: ReturnType<typeof createClient>,
@@ -206,7 +101,6 @@ async function keywordSearch(
   mediaType: string | null,
   limit: number
 ): Promise<Response> {
-  // Server-side full-text search via get_titles_by_keywords RPC (uses GIN + tsvector)
   const { data: results, error } = await supabase.rpc("get_titles_by_keywords", {
     p_query: query,
     p_media_type: (mediaType === "movie" || mediaType === "tv") ? mediaType : null,
@@ -220,9 +114,6 @@ async function keywordSearch(
 
   return new Response(
     JSON.stringify({ results: results ?? [], fallback: true }),
-    {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }
+    { status: 200, headers: { "Content-Type": "application/json" } }
   );
 }

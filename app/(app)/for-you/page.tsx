@@ -26,8 +26,9 @@ export default function ForYouPage() {
     );
 
     Promise.race([rpcPromise, timeoutPromise])
-      .then((result: any) => {
-        setItems((result?.data ?? []) as ForYouResult[]);
+      .then((result) => {
+        const { data } = result as { data: ForYouResult[] | null };
+        setItems(data ?? []);
       })
       .catch((err) => {
         if (err instanceof Error && err.message.includes('timeout')) {

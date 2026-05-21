@@ -1,7 +1,6 @@
-/**
- * Retry logic with exponential backoff + jitter.
- * Used for transient failures (timeouts, 429/503 responses).
- */
+// Retry logic with exponential backoff + jitter.
+// Retries on: AbortError (timeout), network errors (ECONNREFUSED, ENOTFOUND, ETIMEDOUT).
+// Does NOT retry on: application errors, HTTP 4xx/5xx — use retryFetch for HTTP status retries.
 
 export interface RetryOptions {
   maxRetries?: number; // Default: 3
@@ -10,9 +9,6 @@ export interface RetryOptions {
   backoffMultiplier?: number; // Default: 2
 }
 
-/**
- * Exponential backoff with jitter: delay = min(baseDelay * (multiplier ^ attempt) + random, maxDelay)
- */
 function calculateBackoffDelay(
   attempt: number,
   baseDelayMs: number,
@@ -24,10 +20,16 @@ function calculateBackoffDelay(
   return Math.min(exponentialDelay + jitter, maxDelayMs);
 }
 
-/**
- * Retry a function with exponential backoff.
- * Retries on: timeout errors, network errors, 429/503 responses.
- */
+function isRetryableError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === 'AbortError') return true;
+  return (
+    err.message.includes('ECONNREFUSED') ||
+    err.message.includes('ENOTFOUND') ||
+    err.message.includes('ETIMEDOUT')
+  );
+}
+
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   options: RetryOptions = {}
@@ -45,33 +47,10 @@ export async function retryWithBackoff<T>(
     } catch (err) {
       lastError = err;
 
-      // Don't retry on non-retryable errors
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          // Timeout — retryable
-        } else if (
-          err.message.includes('ECONNREFUSED') ||
-          err.message.includes('ENOTFOUND') ||
-          err.message.includes('ETIMEDOUT')
-        ) {
-          // Network errors — retryable
-        } else {
-          // Other errors — don't retry
-          throw err;
-        }
-      }
+      if (!isRetryableError(err)) throw err;
+      if (attempt === maxRetries) break;
 
-      if (attempt === maxRetries) {
-        break; // Last attempt, will throw below
-      }
-
-      const delayMs = calculateBackoffDelay(
-        attempt,
-        baseDelayMs,
-        maxDelayMs,
-        backoffMultiplier
-      );
-
+      const delayMs = calculateBackoffDelay(attempt, baseDelayMs, maxDelayMs, backoffMultiplier);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
@@ -79,10 +58,7 @@ export async function retryWithBackoff<T>(
   throw lastError;
 }
 
-/**
- * Retry a fetch call with exponential backoff.
- * Retries on: timeout, network errors, 429 (too many requests), 503 (service unavailable).
- */
+// Wraps fetch with retry on 429 (rate limited) and 503 (unavailable) in addition to network errors.
 export async function retryFetch(
   url: string,
   init?: RequestInit,
@@ -90,12 +66,9 @@ export async function retryFetch(
 ): Promise<Response> {
   return retryWithBackoff(async () => {
     const res = await fetch(url, init);
-
-    // Retry on 429 or 503
     if (res.status === 429 || res.status === 503) {
       throw new Error(`HTTP ${res.status} — retryable`);
     }
-
     return res;
   }, options);
 }
