@@ -44,10 +44,10 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Bug Fix: Home Page + Timeout Issues)  
+**Date:** 2026-05-21 (Bug Fix: Home Page Timeout + Fast Fallback)  
 **Branch:** master  
-**Last commit:** `71a3e0a` (SSR graceful degradation when semantic-search unavailable)  
-**Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 18:45:00 · All fixes deployed
+**Last commit:** `4700046` (Version update for fast fallback deployment)  
+**Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 19:00:00 · Fast fallback deployed
 
 ### ✅ Completed (Bug Fix + Previous Tasks)
 
@@ -83,19 +83,33 @@
 
 **Bug Report:** Home page always loads same title and spins infinitely on refresh
 
-**Root Causes:**
+**Root Causes Identified:**
 1. **Infinite Spinner** — semantic-search timeout/failure → no error handling → loading state never clears
 2. **Same Title Issue** — embedding caching + deterministic queries → identical top-3 results each load
 3. **Silent Failures** — empty search results indistinguishable from actual errors
+4. **Slow SSR** — semantic search (AI embeddings) taking 8-12+ seconds, causing SSR to fail
 
-**Fixes Applied (commit `4e99e9f`):**
-- **Cache-busting:** timestamp + random nonce on all semantic-search calls (prevents embedding cache staleness)
-- **Timeout safety:** 15s timeout converts persistent loading to error state
-- **Error UI:** "Try Again" button + clear error messages instead of blank spinners
-- **Logging:** Console visibility for all searches, results, timeouts, errors (for debugging)
+**Fixes Applied:**
 
-**Files:** `app/(app)/home/HomeClient.tsx`, `app/(app)/home/page.tsx`  
+*Phase 1 (commits `4e99e9f` → `71a3e0a`)* — Timeouts & Graceful Degradation:
+- Cache-busting on all searches (timestamp + random nonce)
+- 15-20s timeout safety nets
+- Error UI with "Try Again" button
+- SSR graceful degradation for failed semantic-search
+
+*Phase 2 (commit `74de6bb`)* — Fast Fallback Strategy:
+- **SSR now uses fast keyword search** (instant) instead of waiting for AI embeddings
+- **Client-side semantic search attempts AI-powered results** (better relevance)
+- **Immediate keyword fallback** if semantic search fails (no waiting for timeout)
+- Reduced timeout from 20s → 15s (fallback is fast enough)
+
+**Files Modified:**
+- `app/(app)/home/HomeClient.tsx` — Added `keywordSearch()` fallback function
+- `app/(app)/home/page.tsx` — Changed SSR to use keyword search RPC
+- `lib/version.ts` — Updated timestamp
+
 **Build:** ✓ Compiled successfully
+**Deployment:** ✓ dpl_GshL4tepB1ukY4f5BYMzsRkA6D9R
 
 ### 🔴 Issues Identified & Resolved
 
