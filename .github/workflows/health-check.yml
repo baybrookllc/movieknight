@@ -1,0 +1,24 @@
+name: Health Check Cron
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger health-monitor
+        run: |
+          curl -X POST "${{ secrets.HEALTH_MONITOR_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.MONITOR_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30 \
+            --retry 2 \
+            -w "\nHTTP Status: %{http_code}\n"
+
+      - name: Log health check
+        if: always()
+        run: echo "Health check completed at $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
