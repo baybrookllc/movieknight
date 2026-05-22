@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, startTransition } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 
 import TitleCard from '@/components/TitleCard';
 import type { Title } from '@/lib/types';
@@ -77,6 +78,7 @@ function FilterOpt({ label, active, onClick }: { label: string; active: boolean;
 
 /* ── Main component ───────────────────────────────────────────── */
 export default function BrowseClient({ initialQuery, initialFormat }: BrowseClientProps) {
+  const { user } = useAuth();
   const [query, setQuery] = useState(initialQuery);
   const [inputVal, setInputVal] = useState(initialQuery);
   const [filters, setFilters] = useState<FilterState>({ ...DEFAULT_FILTERS, format: initialFormat });
@@ -89,6 +91,9 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
   const [platformList, setPlatformList] = useState<{ id: number; name: string }[]>([]);
   const genRef = useRef(0);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [filterHiddenTriggers, setFilterHiddenTriggers] = useState(false);
+  const [userTriggerPrefs, setUserTriggerPrefs] = useState<Record<string, 'flag' | 'hide'>>({});
+  const [triggersByTitleId, setTriggersByTitleId] = useState<Record<string, any[]>>({});
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -205,12 +210,64 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
         const tmdbList: Title[] = tmdbInvoke.data?.results ?? [];
         const semList: Title[] = semInvoke.data?.results ?? [];
         const seen = new Set(tmdbList.map(r => r.id));
-        data = [...tmdbList, ...semList.filter(r => !seen.has(r.id))];
+        let merged = [...tmdbList, ...semList.filter(r => !seen.has(r.id))];
+
+        // Filter by hidden triggers if enabled
+        if (filterHiddenTriggers && user) {
+          try {
+            const titleIds = merged.map(t => t.id);
+            const { data: triggerData } = await supabase
+              .from('dtdd_cache')
+              .select('title_id, topics')
+              .in('title_id', titleIds);
+
+            // Fetch user prefs if not cached
+            let prefs = userTriggerPrefs;
+            if (Object.keys(prefs).length === 0) {
+              const { data: prefsData } = await supabase
+                .from('user_trigger_prefs')
+                .select('topic_key, action')
+                .eq('user_id', user.id);
+              prefs = {};
+              prefsData?.forEach(p => { prefs[p.topic_key] = p.action; });
+              setUserTriggerPrefs(prefs);
+            }
+
+            // Build trigger map
+            const triggerMap: Record<string, any[]> = {};
+            triggerData?.forEach(t => { triggerMap[t.title_id] = t.topics; });
+
+            // Filter out titles with hidden triggers
+            merged = merged.filter(title => {
+              const triggers = triggerMap[title.id] || [];
+              return !triggers.some(t => prefs[t.topicKey] === 'hide');
+            });
+
+            // Cache trigger data
+            setTriggersByTitleId(prev => ({ ...prev, ...triggerMap }));
+          } catch (err) {
+            console.error('[BrowseClient] Search result filtering failed:', err);
+            // Continue with unfiltered results on error
+          }
+        } else {
+          // Fetch trigger data even without filtering (for badges)
+          const titleIds = merged.map(t => t.id);
+          if (titleIds.length > 0) {
+            await fetchTriggersForResults(titleIds);
+          }
+        }
+
+        data = merged;
       } else {
-        const rpcParams = buildParams(filters, append ? offsetRef.current : 0);
+        const rpcParams = buildParams(filters, append ? offsetRef.current : 0, filterHiddenTriggers, user?.id);
         const { data: rows, error } = await supabase.rpc('browse_titles', rpcParams);
         if (error) throw error;
         data = (rows ?? []) as Title[];
+
+        // Fetch trigger data for results
+        if (data.length > 0) {
+          await fetchTriggersForResults(data.map(t => t.id));
+        }
 
         if (gen !== genRef.current) return;
         const hasMorePage = data.length > PAGE_SIZE;
@@ -229,11 +286,41 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
     }
   }, [query, filters]);
 
+  // Fetch trigger data for search results
+  const fetchTriggersForResults = useCallback(async (titleIds: string[]) => {
+    if (!titleIds.length) return;
+    try {
+      const { data: triggerData } = await supabase
+        .from('dtdd_cache')
+        .select('title_id, topics')
+        .in('title_id', titleIds);
+
+      // Transform into titleId → topics map
+      const byId: Record<string, any[]> = {};
+      triggerData?.forEach(t => { byId[t.title_id] = t.topics; });
+      setTriggersByTitleId(prev => ({ ...prev, ...byId }));
+
+      // Fetch user's trigger prefs if not already cached
+      if (user && Object.keys(userTriggerPrefs).length === 0) {
+        const { data: prefs } = await supabase
+          .from('user_trigger_prefs')
+          .select('topic_key, action')
+          .eq('user_id', user.id);
+
+        const prefsMap: Record<string, 'flag' | 'hide'> = {};
+        prefs?.forEach(p => { prefsMap[p.topic_key] = p.action; });
+        setUserTriggerPrefs(prefsMap);
+      }
+    } catch (err) {
+      console.error('[BrowseClient] fetchTriggersForResults failed:', err);
+    }
+  }, [user, userTriggerPrefs]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     runSearch(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filters]);
+  }, [query, filters, filterHiddenTriggers]);
 
   const setFilter = (key: keyof FilterState, val: string | number | number[]) => {
     // Validate year range: yearFrom should not be > yearTo
@@ -452,7 +539,23 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
           )}
         </FilterDropdown>
 
-        {hasActiveFilters && (
+        {/* Trigger warnings toggle */}
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px',
+          fontSize: 12, cursor: user ? 'pointer' : 'not-allowed',
+          opacity: user ? 1 : 0.5, whiteSpace: 'nowrap',
+        }} title={!user ? 'Configure your trigger warnings on your profile' : ''}>
+          <input
+            type="checkbox"
+            checked={filterHiddenTriggers}
+            onChange={(e) => setFilterHiddenTriggers(e.target.checked)}
+            disabled={!user}
+            style={{ cursor: user ? 'pointer' : 'not-allowed' }}
+          />
+          <span>Hide my warnings</span>
+        </label>
+
+        {hasActiveFilters || filterHiddenTriggers && (
           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--accent)', borderColor: 'rgba(255,46,99,0.4)' }}
             onClick={() => setFilters({ ...DEFAULT_FILTERS, format: initialFormat })}>
             Clear all ×
@@ -515,7 +618,12 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
                 borderRadius: 'var(--radius)',
               }}
             >
-              <TitleCard {...t} priority={idx < 6} />
+              <TitleCard
+                {...t}
+                priority={idx < 6}
+                triggerTopics={triggersByTitleId[t.id]}
+                userTriggerPrefs={userTriggerPrefs}
+              />
             </div>
           ))}
         </div>
@@ -532,7 +640,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
   );
 }
 
-function buildParams(f: FilterState, currentOffset: number) {
+function buildParams(f: FilterState, currentOffset: number, userFilterTriggers: boolean, userId?: string) {
   const params: Record<string, unknown> = {
     p_limit: PAGE_SIZE + 1, p_offset: currentOffset,
     p_media_type: f.format || null,
@@ -545,6 +653,9 @@ function buildParams(f: FilterState, currentOffset: number) {
     p_language: f.language || null,
     p_platform_ids: f.platforms.length > 0 ? f.platforms : null,
     p_runtime_min: null, p_runtime_max: null,
+    // Trigger warning filtering
+    p_user_id: userFilterTriggers && userId ? userId : null,
+    p_filter_hidden_triggers: userFilterTriggers && !!userId,
   };
   switch (f.runtime) {
     case 'short':        params.p_runtime_max = 89; break;

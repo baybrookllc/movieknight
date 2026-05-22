@@ -14,6 +14,8 @@ interface TitleCardProps {
   status?: string | null;
   size?: 'sm' | 'md' | 'lg';
   priority?: boolean;
+  triggerTopics?: Array<{ topicKey: string; topicName: string }>;
+  userTriggerPrefs?: Record<string, 'flag' | 'hide'>;
 }
 
 const SIZE_MAP = {
@@ -23,11 +25,15 @@ const SIZE_MAP = {
 };
 
 export default function TitleCard({
-  id, title, poster_path, media_type, vote_average, release_date, status, size = 'md', priority = false
+  id, title, poster_path, media_type, vote_average, release_date, status, size = 'md', priority = false,
+  triggerTopics, userTriggerPrefs
 }: TitleCardProps) {
   const { width, height } = SIZE_MAP[size];
   const posterSrc = poster_path ? `${TMDB_IMG}${poster_path}` : null;
   const year = releaseYear(release_date);
+
+  // Calculate flagged triggers
+  const flaggedTriggers = triggerTopics?.filter(t => userTriggerPrefs?.[t.topicKey] === 'flag') || [];
 
   return (
     <Link href={`/${id}`} style={{ display: 'block', width, flexShrink: 0 }}>
@@ -89,6 +95,26 @@ export default function TitleCard({
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
               </svg>
               {vote_average.toFixed(1)}
+            </div>
+          )}
+
+          {/* Trigger warnings badge */}
+          {flaggedTriggers.length > 0 && (
+            <div
+              style={{
+                position: 'absolute', top: 8, right: 8,
+                background: 'rgba(245, 158, 11, 0.9)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: 4,
+                padding: '4px 7px',
+                fontSize: 9, fontWeight: 700,
+                color: '#000',
+                display: 'flex', alignItems: 'center', gap: 3,
+                cursor: 'help',
+              }}
+              title={`Triggers: ${flaggedTriggers.map(t => t.topicName).join(', ')}`}
+            >
+              ⚠ {flaggedTriggers.length}
             </div>
           )}
 
