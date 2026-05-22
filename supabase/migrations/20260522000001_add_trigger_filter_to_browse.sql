@@ -5,8 +5,8 @@
 CREATE INDEX IF NOT EXISTS idx_dtdd_cache_topics_gin
 ON public.dtdd_cache USING GIN (topics);
 
--- Drop old function and create extended version
-DROP FUNCTION IF EXISTS browse_titles(text,int[],float,int,int,text,text,text,int,int,int,int,int);
+-- Drop old function if it exists (using CASCADE to handle any dependencies)
+DROP FUNCTION IF EXISTS browse_titles CASCADE;
 
 CREATE FUNCTION browse_titles(
   p_media_type            text    DEFAULT NULL,
