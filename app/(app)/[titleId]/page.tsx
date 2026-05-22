@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import DetailClient from '@/components/DetailClient';
 import { TMDB_IMG, truncate } from '@/lib/utils';
 
@@ -65,11 +66,7 @@ export default async function DetailPage({
   const data = await getTitle(decodedId);
 
   if (!data) {
-    return (
-      <div className="empty-state">
-        <p>Title not found or failed to load.</p>
-      </div>
-    );
+    notFound();
   }
 
   return (
