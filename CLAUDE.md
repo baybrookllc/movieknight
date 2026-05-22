@@ -44,9 +44,62 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Critical Bug Fixes: Login Page + Home Timeout)  
-**Branch:** master  
-**Last commit:** `b5c89cf` (chore: Update version to v5.8 and timestamp 2026-05-21 19:15:00)  
+**Date:** 2026-05-21 (Hero Recommendation Restore — v5.9)
+**Branch:** master
+**Last commit:** `cb57944` (fix: Restore hero recommendation feature (v5.9))
+**Production Status:** 🟢 LIVE — v5.9 · 2026-05-21 19:45:00 · Hero recommendations restored
+
+### ✅ Completed (This Session — 2026-05-21 v5.9)
+
+**User Report:**
+"Issue with the main hero recommendation feature remains" — browser console showed cascading 401 (semantic-search) → 404 (keyword RPC) → infinite spinner.
+
+**Root cause investigation found three layered bugs**, all production-config issues — code architecture was sound:
+
+1. **`get_titles_by_keywords` RPC missing in production DB** — Migration `20260520000001` was REGISTERED in `supabase_migrations.schema_migrations` but the SQL never actually executed. Confirmed by the push notice: `function public.get_titles_by_keywords(...) does not exist, skipping`. Created fresh migration `20260521190000_keyword_search_rpc_fix.sql` which definitively creates the function + GIN index + GRANT EXECUTE + `NOTIFY pgrst, 'reload schema'`.
+
+2. **Edge function `semantic-search` 401'd anonymous callers** — When the prior session removed `/home` from PROTECTED routes, guests started hitting this endpoint with no JWT. The Supabase gateway was set to `verify_jwt=true` (default). Added `supabase/config.toml` with `[functions.semantic-search] verify_jwt = false` and redeployed via `npx supabase functions deploy semantic-search --no-verify-jwt`.
+
+3. **Rate limiter denied ALL traffic when Upstash was unconfigured** — `_shared/rate-limit.ts` "fails closed" when `UPSTASH_REDIS_REST_URL` is unset. In production, Upstash is not provisioned (only `OPENAI_API_KEY` is in edge-function secrets). Result: every edge function returned 429 to every caller. Changed the unconfigured-fallback to "fail open with warning". Network errors with Upstash *configured* still fail closed.
+
+**Verified end-to-end after fixes:**
+- `POST /rest/v1/rpc/get_titles_by_keywords` → HTTP 200 with results
+- `GET /functions/v1/semantic-search?query=...` (anon) → HTTP 200 with 12 ranked matches (e.g. "Brainstorm", "Gaslight", "The Limits of Control" for the Mind-blowing mood query)
+
+**Bonus impact** — fix #3 also unblocks `tmdb-cache`, `generate-embedding`, `tv-seasons`, `tv-auth`, `dtdd-fetch`, which were silently failing closed.
+
+### 📋 Commits (This Session)
+
+1. `cb57944` — fix: Restore hero recommendation feature (v5.9)
+   - `supabase/migrations/20260521190000_keyword_search_rpc_fix.sql` (new)
+   - `supabase/config.toml` (new — declarative function auth config)
+   - `supabase/functions/_shared/rate-limit.ts` (fail-open on unconfigured)
+   - `lib/version.ts` (v5.8 → v5.9, timestamp 2026-05-21 19:45:00)
+
+### 📋 Operational Steps Performed
+
+- `supabase migration repair --status reverted 20260515` (cleared a stray ghost entry that blocked push)
+- `supabase db push --linked --include-all` (applied the new migration; included a re-apply of `20260515_add_streaming_platforms.sql` which was idempotent and a no-op)
+- `supabase functions deploy semantic-search --no-verify-jwt --project-ref nwvliipxqedueskhxdym` (twice — first to fix verify_jwt, second to ship the rate-limit fix)
+- `git push origin master` (Vercel auto-deploy to update the version stamp on the site)
+
+### 🔴 Known Follow-Ups (Not Blocking)
+
+1. **Upstash rate-limiter is not provisioned.** Every edge function now allows unlimited requests because the shared module fails open. For production hardening, provision Upstash and set `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` via `supabase secrets set`. The fail-open path will automatically switch to enforcement once both are present.
+2. **Migration `20260520000001_keyword_search_rpc.sql` is still in the repo but is effectively a no-op now** (superseded by `20260521190000_keyword_search_rpc_fix.sql`). Safe to leave; both are idempotent.
+
+### 📋 Next Session
+
+If user reports issues:
+1. Open the live site as a guest — verify the Mind-blowing hero loads within ~3s
+2. If still empty, check `npx supabase functions logs semantic-search` for `[checkRateLimit] UPSTASH env vars not set` warnings (expected) or any errors
+3. If keyword RPC returns no results for compound mood queries (e.g. `'mind-blowing psychological mind-bending thriller'`), consider switching `plainto_tsquery` to OR-based matching in a future migration — semantic-search handles this gracefully today since vector similarity doesn't need keyword overlap
+
+---
+
+### 📋 Prior Session Status (v5.8 — superseded above)
+
+**Last commit:** `b5c89cf` (chore: Update version to v5.8 and timestamp 2026-05-21 19:15:00)
 **Production Status:** 🟢 LIVE — v5.8 · 2026-05-21 19:15:00 · Both critical fixes deployed
 
 ### ✅ Completed (This Session — 2026-05-21)
