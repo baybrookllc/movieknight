@@ -18,6 +18,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
 import { retryWithBackoff } from '@/lib/retry';
 
+// Use Vercel AI Gateway for better authentication, observability, and fallbacks
+const getAnthropicClient = () => {
+  const baseURL = process.env.VERCEL_AI_GATEWAY_URL
+    ? `${process.env.VERCEL_AI_GATEWAY_URL}/providers/anthropic`
+    : undefined;
+
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL,
+  });
+};
+
 const RL_MAX = 10;
 const RL_WINDOW_SECS = 60;
 
@@ -200,7 +212,7 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
         { status: 500 }
       );
     }
-    const anthropic = new Anthropic({ apiKey });
+    const anthropic = getAnthropicClient();
 
     try {
       const response = await retryWithBackoff(
