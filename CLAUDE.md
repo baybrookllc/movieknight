@@ -44,6 +44,92 @@
 
 ## Current Session Status
 
+**Date:** 2026-05-22 (Integration Automation — v6.1)
+**Branch:** master
+**Last commit:** `bb8549f` (feat: Integrate Supabase auto-migrations & upgrade Vercel config (v6.1))
+**Production Status:** 🟢 LIVE — v6.0 · 2026-05-21 21:30:00 · Hero fully operational
+
+### ✅ Completed (v6.1 — 2026-05-22 Integration Automation)
+
+**Scope:** Eliminate manual steps in the Supabase ↔ GitHub ↔ Vercel deployment pipeline.
+
+**Integration Audit & Implementation:**
+
+1. **GitHub Action for Auto-Migrations** ✅
+   - Created `.github/workflows/deploy-migrations.yml`
+   - Triggers on push to `supabase/migrations/` or `supabase/config.toml` on master
+   - Uses `SUPABASE_ACCESS_TOKEN` (added to GitHub secrets via gh CLI)
+   - Runs: `supabase db push --linked --project-ref nwvliipxqedueskhxdym`
+   - Eliminates manual `supabase db push` step, prevents schema drift
+
+2. **Supabase CLI Upgrade** ⚠️
+   - Attempted: `npm install -g supabase@latest`
+   - Status: CLI is standalone executable in C:\Windows\system32\supabase (v2.75.0)
+   - Manual download required: https://github.com/supabase/cli/releases (latest: v2.101.0)
+   - Impact: Low priority (current version functional, but missing 9 months of improvements)
+
+3. **Vercel Config Upgrade** ✅
+   - Created `vercel.ts` (TypeScript config, replacing vercel.json)
+   - Installed `@vercel/config` dev dependency
+   - Vercel auto-detects and uses new format
+   - Benefits: Type-safe, environment-aware, dynamic configuration support
+   - vercel.json can be deleted in future (left for backward compatibility)
+
+4. **Setup Documentation** ✅
+   - Created `INTEGRATION_SETUP.md` with step-by-step guides
+   - Documents all 3 integrations with clickable URLs and screenshots instructions
+   - Includes testing workflow and troubleshooting section
+
+**Pre-Setup Verification:**
+- Confirmed GitHub → Vercel auto-deployment working ✅
+- Confirmed Vercel → Supabase env vars encrypted & scoped ✅
+- Confirmed Supabase migrations in git & deployed ✅
+- Confirmed GitHub Actions CI pipeline running ✅
+- Identified 4 active health check + deployment workflows ✅
+
+**Pending User Action (Self-Service Dashboards):**
+- [ ] Vercel ↔ Supabase integration connect (Step 1 of INTEGRATION_SETUP.md)
+- [ ] Supabase GitHub branching enable (Step 2 of INTEGRATION_SETUP.md)
+- [ ] Manual Supabase CLI upgrade (optional, instructions provided)
+
+### 📋 Commits (v6.1)
+
+1. `bb8549f` — feat: Integrate Supabase auto-migrations & upgrade Vercel config (v6.1)
+   - `.github/workflows/deploy-migrations.yml` (new — auto-migration workflow)
+   - `vercel.ts` (new — TypeScript config)
+   - `package.json` + `package-lock.json` (@vercel/config added)
+   - `INTEGRATION_SETUP.md` (new — setup guides)
+
+### 🎯 Impact
+
+**Before v6.1:**
+- Deploy process: Code → push → Vercel auto-deploys → Manual `supabase db push` (human step)
+- Secret management: Update in Vercel AND Supabase separately
+- Feature branch testing: Local Docker only (no prod-like DB)
+
+**After v6.1 (with dashboard integrations complete):**
+- Deploy process: Code + migration → push → Both Vercel & Supabase auto-deploy ✅
+- Secret management: 1 source of truth (Vercel ↔ Supabase synced)
+- Feature branch testing: Preview Supabase DB auto-created per PR ✅
+
+### 📋 Next Immediate Actions
+
+**User-Initiated (Dashboard Setup — ~10 min total):**
+1. Follow Step 1 in `INTEGRATION_SETUP.md` to connect Vercel ↔ Supabase
+2. Follow Step 2 to enable Supabase GitHub branching
+3. Test by pushing a dummy migration file
+
+**Optional (Low Priority):**
+- Manual Supabase CLI upgrade (see INTEGRATION_SETUP.md)
+
+**After Dashboard Setup:**
+- Test full workflow: `git push` migration → auto-deploy to prod
+- Verify workflow logs at https://github.com/baybrookllc/movieknight/actions
+
+---
+
+## Prior Session Status (v6.0)
+
 **Date:** 2026-05-21 (Hero Recommendation: 100% Working — v6.0)
 **Branch:** master
 **Last commit:** `60d7825` (fix: Keyword RPC OR-matching restores SSR for all moods (v6.0))
