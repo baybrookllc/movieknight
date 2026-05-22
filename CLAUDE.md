@@ -29,6 +29,15 @@
 
 ## Session History
 
+### 2026-05-22 — Claude Assistant Fix: Vercel AI Gateway (v6.2)
+- Root cause found: `ANTHROPIC_API_KEY=""` (empty) + model `claude-3-5-haiku-20241022` deprecated since Feb 2026
+- Implemented Vercel AI Gateway with OIDC (Option B): `ai` + `@ai-sdk/gateway` packages
+- Enabled Vercel credit card on account to unlock AI Gateway free tier (user action)
+- OIDC confirmed auto-injected (`VERCEL_OIDC_TOKEN` in Vercel env) — no manual API key needed
+- Verified 100% end-to-end in production: `POST /api/claude/ask` returns proper movie recommendations
+- Commits: `32d70db` (initial gateway migration), `e82d708` (OIDC auto-auth, remove hard key req)
+
+
 ### 2026-05-18 — Security & Deployment (feat/nextjs-migration)
 - Credential leak patched; Supabase keys rotated; production deployed at https://movieknight.ca
 - Full code review (146 files): 3 critical, 4 high, 6 medium security/quality fixes (commit cc7c21e)
@@ -44,6 +53,37 @@
 
 ## Current Session Status
 
+**Date:** 2026-05-22 (Claude Assistant Fix — v6.2)
+**Branch:** master
+**Last commit:** `e82d708` (Vercel AI Gateway + OIDC auto-auth)
+**Production Status:** 🟢 LIVE — v6.2 · 2026-05-22 22:00:00 · Claude assistant 100% working
+
+### ✅ Completed (v6.2 — 2026-05-22 Claude Assistant Fix)
+
+**Root Cause:** `ANTHROPIC_API_KEY=""` (empty string in Vercel Production) + deprecated model  
+**Fix:** Migrated to Vercel AI Gateway with OIDC authentication
+
+1. **Diagnosed real error** — pulled production env, confirmed `ANTHROPIC_API_KEY=""` was the cause
+2. **Migrated to Vercel AI SDK** — replaced `@anthropic-ai/sdk` with `ai` + `@ai-sdk/gateway`
+3. **OIDC authentication** — `createGateway({})` auto-uses `VERCEL_OIDC_TOKEN` (injected by Vercel)
+4. **Model updated** — `claude-3-5-haiku-20241022` (EOL Feb 2026) → `anthropic/claude-haiku-4.5`
+5. **User added credit card** to Vercel account (required to unlock AI Gateway free tier)
+6. **Verified end-to-end in production** — full movie recommendation response confirmed via API test
+
+**Evidence of production working:**
+- `POST https://movieknight.ca/api/claude/ask` → HTTP 200
+- Response: Quality Interstellar-style recommendations (Arrival, The Martian, Dune)
+- Tokens: input=162, output=197
+
+### 🔴 Issues Identified
+- None blocking. `ANTHROPIC_API_KEY` env var still present in Vercel but now unused (safe to leave)
+
+### 📋 Next Session
+No pending technical work. Claude assistant is fully operational.
+
+---
+
+### Prior Session Status (v6.1.1 — Integration Automation & Deployment Fix)
 **Date:** 2026-05-22 (Integration Automation & Deployment Fix — v6.1.1)
 **Branch:** master
 **Last commit:** `3115631` (fix: Remove vercel.json — migrated to vercel.ts (fixes Vercel config conflict))
