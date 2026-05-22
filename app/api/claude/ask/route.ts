@@ -196,16 +196,11 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
     }
 
     // ── 6. Call Claude via Vercel AI Gateway ─────────────────────────────
-    const gatewayApiKey = process.env.AI_GATEWAY_API_KEY;
-    if (!gatewayApiKey) {
-      console.error('[claude/ask] AI_GATEWAY_API_KEY not configured');
-      return NextResponse.json(
-        { error: 'AI Gateway not configured' },
-        { status: 500 }
-      );
-    }
-
-    const vercelGateway = createGateway({ apiKey: gatewayApiKey });
+    // createGateway() prefers AI_GATEWAY_API_KEY env var when set.
+    // Falls back to OIDC (auto-injected by Vercel on production deployments).
+    const vercelGateway = createGateway({
+      ...(process.env.AI_GATEWAY_API_KEY && { apiKey: process.env.AI_GATEWAY_API_KEY }),
+    });
 
     try {
       const { text, usage } = await generateText({

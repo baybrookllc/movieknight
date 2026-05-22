@@ -19,7 +19,6 @@ export const dynamic = 'force-dynamic';
 const REQUIRED_ENV_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-  'AI_GATEWAY_API_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
 ];
 
