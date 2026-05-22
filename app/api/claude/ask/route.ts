@@ -9,26 +9,17 @@
  *
  * Auth: Requires valid Supabase JWT (uses cookie from Supabase SSR).
  * Rate limit: 10 requests / minute per user.
+ *
+ * AI: Uses Vercel AI Gateway (ai package + @ai-sdk/gateway).
+ *     Requires AI_GATEWAY_API_KEY env var (Vercel dashboard → AI → API Keys).
+ *     On Vercel deployments, OIDC is used automatically as fallback.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import Anthropic from '@anthropic-ai/sdk';
-import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
-import { retryWithBackoff } from '@/lib/retry';
-
-// Use Vercel AI Gateway for better authentication, observability, and fallbacks
-const getAnthropicClient = () => {
-  const baseURL = process.env.VERCEL_AI_GATEWAY_URL
-    ? `${process.env.VERCEL_AI_GATEWAY_URL}/providers/anthropic`
-    : undefined;
-
-  return new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    baseURL,
-  });
-};
+import { generateText } from 'ai';
+import { createGateway } from '@ai-sdk/gateway';
 
 const RL_MAX = 10;
 const RL_WINDOW_SECS = 60;
@@ -204,58 +195,37 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
       userMessage = `${question}${titleContext}${historyContext}`;
     }
 
-    // ── 6. Call Claude with retry logic ──────────────────────────────────
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
+    // ── 6. Call Claude via Vercel AI Gateway ─────────────────────────────
+    const gatewayApiKey = process.env.AI_GATEWAY_API_KEY;
+    if (!gatewayApiKey) {
+      console.error('[claude/ask] AI_GATEWAY_API_KEY not configured');
       return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY not configured' },
+        { error: 'AI Gateway not configured' },
         { status: 500 }
       );
     }
-    const anthropic = getAnthropicClient();
+
+    const vercelGateway = createGateway({ apiKey: gatewayApiKey });
 
     try {
-      const response = await retryWithBackoff(
-        async () => {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-          try {
-            return await anthropic.messages.create({
-              model: 'claude-3-5-haiku-20241022',
-              max_tokens: 600,
-              system: SYSTEM_PROMPT,
-              messages: [{ role: 'user', content: userMessage }],
-              // @ts-expect-error - signal not yet in Anthropic SDK types but supported at runtime
-              signal: controller.signal,
-            });
-          } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              throw new Error('Claude request timeout (10s)');
-            }
-            throw err;
-          } finally {
-            clearTimeout(timeoutId);
-          }
-        },
-        { maxRetries: 2, baseDelayMs: 100, maxDelayMs: 1000 }
-      );
-
-      const text = response.content
-        .filter((block): block is TextBlock => block.type === 'text')
-        .map((block) => block.text)
-        .join('\n');
+      const { text, usage } = await generateText({
+        model: vercelGateway('anthropic/claude-haiku-4.5'),
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+        maxOutputTokens: 600,
+        abortSignal: AbortSignal.timeout(10000),
+      });
 
       return NextResponse.json({
         answer: text,
         mode,
         usage: {
-          input_tokens: response.usage.input_tokens,
-          output_tokens: response.usage.output_tokens,
+          input_tokens: usage.inputTokens ?? 0,
+          output_tokens: usage.outputTokens ?? 0,
         },
       });
     } catch (err) {
-      if (err instanceof Error && err.message.includes('timeout')) {
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('timeout'))) {
         console.warn('[claude/ask] Request timeout (10s)');
         return NextResponse.json(
           { error: 'Claude request timeout — please try again' },
