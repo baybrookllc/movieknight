@@ -44,8 +44,54 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-21 (Hero Recommendation Restore — v5.9)
+**Date:** 2026-05-21 (Hero Recommendation: 100% Working — v6.0)
 **Branch:** master
+**Last commit:** `60d7825` (fix: Keyword RPC OR-matching restores SSR for all moods (v6.0))
+**Production Status:** 🟢 LIVE — v6.0 · 2026-05-21 21:30:00 · Hero renders SSR with real matches
+
+### ✅ Completed (v6.0 — 2026-05-21 SSR fix)
+
+**User report:** "It's not working" after v5.9 — Mind-blowing hero still empty for guests.
+
+**Root cause:** The v5.9 fix made `get_titles_by_keywords` exist on remote, but its body used `plainto_tsquery` which AND-joins every word. Compound mood queries like "mind-blowing psychological mind-bending thriller" require ALL 4 words to appear in a single title — no title matches, so SSR returned 0 results for every mood. The page fell through to client-side semantic-search and users saw a 1-2s spinner before the hero appeared (or stayed blank if semantic was slow).
+
+**Verified each of the 8 mood queries returns 0 rows from the AND function** before fix.
+
+**Fix:**
+1. `20260521200000_keyword_search_or_match.sql` — rewrites the RPC to:
+   - Strip non-alphanumerics, split on whitespace, join with ` | ` for OR matching
+   - Vote-weighted ranking (`ts_rank * (0.5 + vote_average/20)`)
+   - Filter to `vote_average >= 5.5 AND poster_path IS NOT NULL` for quality
+2. `20260521210000_keyword_search_type_fix.sql` — adds `::float` cast on `vote_average` (column is `numeric(3,1)`, function returned `float`, surfaced as PostgREST 400 / `42804`).
+
+**Post-fix verification (all 8 moods now populate SSR):**
+| Mood | Top hit |
+|---|---|
+| Mind-blowing | The Twilight Zone |
+| Funny | Seth MacFarlane's Cavalcade |
+| Easy Watch | The Fiery Priest (8.2) |
+| Emotional | KBS Drama Special (7.4) |
+| Thrilling | Chicago Fire (8.4) |
+| Romantic | Single's Inferno (7.7) |
+| Scary | Goosebumps (7.9) |
+| Epic | Halo (8.2) |
+
+Confirmed against live HTML — `<h2 class="match-title">The Twilight Zone</h2>` is server-rendered with no spinner. 71% match score, Watch Now / Try Another buttons, quick picks (Dark, Black Mirror, Doctor Strange in the Multiverse of Madness, Mr. Brooks, Now You See Me 2).
+
+### 📋 Commits (v6.0)
+
+1. `60d7825` — fix: Keyword RPC OR-matching restores SSR for all moods (v6.0)
+   - `supabase/migrations/20260521200000_keyword_search_or_match.sql` (new)
+   - `supabase/migrations/20260521210000_keyword_search_type_fix.sql` (new)
+   - `lib/version.ts` (v5.9 → v6.0, timestamp 2026-05-21 21:30:00)
+
+### 🔴 Known Follow-Ups (Not Blocking)
+
+1. **Upstash rate-limiter still unprovisioned.** Rate-limit module fails open (allows all). To restore enforcement, set `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` via `supabase secrets set` and redeploy the affected edge functions.
+2. **Earlier `20260520000001_keyword_search_rpc.sql` and `20260521190000_keyword_search_rpc_fix.sql` are now superseded** by the OR-match version. All idempotent; safe to leave.
+
+### 📋 Prior Session (v5.9 — superseded)
+
 **Last commit:** `cb57944` (fix: Restore hero recommendation feature (v5.9))
 **Production Status:** 🟢 LIVE — v5.9 · 2026-05-21 19:45:00 · Hero recommendations restored
 
