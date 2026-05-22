@@ -210,7 +210,7 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
 
           try {
             return await anthropic.messages.create({
-              model: 'claude-haiku-4-5',
+              model: 'claude-3-5-haiku-20241022',
               max_tokens: 600,
               system: SYSTEM_PROMPT,
               messages: [{ role: 'user', content: userMessage }],
