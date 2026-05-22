@@ -1,8 +1,23 @@
-# Integration Setup Guide (v6.1)
+# Integration Setup Guide (v6.1.1)
 
-> **Status**: Auto-migrations ready ✅ | Dashboard integrations pending ⏳
+> **Status**: Auto-migrations ready ✅ | Production deployed ✅ | Dashboard integrations optional ⏳
+
+**Latest Update:** Production deployment issue resolved (v6.1.1). Vercel config conflict fixed by removing old vercel.json. All systems operational.
 
 This guide walks through the remaining setup to fully integrate Supabase ↔ GitHub ↔ Vercel.
+
+---
+
+## 🚀 Current Deployment Status (2026-05-22 21:36 UTC)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Production** | 🟢 LIVE | v6.0 · Commit 3115631 · movieknight.ca operational |
+| **Auto-Migrations** | ✅ ARMED | GitHub Action ready, awaiting first test |
+| **Vercel Config** | ✅ UPGRADED | vercel.ts (TypeScript) active, old vercel.json removed |
+| **Build Status** | ✅ SUCCESSFUL | 21 pages generated, 11.7s compile time |
+| **Health Checks** | ✅ PASSING | /api/health returning 200, homepage SSR working |
+| **GitHub Secrets** | ✅ CONFIGURED | SUPABASE_ACCESS_TOKEN added for migrations |
 
 ---
 
@@ -202,12 +217,33 @@ git push origin master
 
 ---
 
-## 📞 Support
+## 🔧 Troubleshooting
 
-If integrations fail:
+### Auto-migration fails
+- **Check**: Workflow logs at https://github.com/baybrookllc/movieknight/actions
+- **Common issues**:
+  - `SUPABASE_ACCESS_TOKEN` not set → Add to repo secrets
+  - Token expired → Regenerate at https://app.supabase.com/account/tokens
+  - Project ref wrong → Verify `-project-ref nwvliipxqedueskhxdym` in workflow
 
-1. **Auto-migration fails**: Check workflow logs at https://github.com/baybrookllc/movieknight/actions
-2. **Supabase token invalid**: Regenerate at https://app.supabase.com/account/tokens
-3. **Vercel integration errors**: Check project settings → Integrations
-4. **GitHub branching not working**: Verify at https://app.supabase.com → Settings → Version Control
+### Vercel deployment fails
+- **Error**: "Multiple config files found: vercel.json, vercel.ts"
+  - **Solution**: Delete `vercel.json`, keep only `vercel.ts`
+  - **Why**: Vercel 54.2.0+ requires single config file
+  - **Status in this repo**: ✅ RESOLVED (commit 3115631)
+
+### Supabase token issues
+- **Regenerate token**: https://app.supabase.com/account/tokens
+- **Add to GitHub**: Settings → Secrets → SUPABASE_ACCESS_TOKEN
+- **Verify in action**: Check workflow logs for "Deploy migrations to production" step
+
+### GitHub branching not working
+- **Verify at**: https://app.supabase.com → Settings → Version Control
+- **Check**: "Connected to GitHub" status, green checkmark visible
+- **If missing**: Click "Connect GitHub" and authorize
+
+### Deployment cache issues
+- **Force redeploy**: `vercel deploy --prod` (requires CLI)
+- **Clear cache**: May take 1-2 minutes to propagate
+- **Check status**: `vercel logs --limit 10`
 

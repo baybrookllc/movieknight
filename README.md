@@ -3,8 +3,8 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v5.2 (May 17, 2026)  
-**Status:** Production-ready with AI features, MCP stack, and comprehensive debug monitoring
+**Current Version:** v6.0 (May 21, 2026 · 21:30 UTC)  
+**Status:** 🟢 Production-ready · SSR hero recommendations · Automated deployments · Health monitoring
 
 ---
 
@@ -185,26 +185,43 @@ Items in a list and members with roles (editor/viewer).
 
 ---
 
-## 🚀 Deployment
+## 🚀 Deployment (Automated)
 
 ### Prerequisites
 - Vercel account linked to repo
 - Supabase project (CLI authenticated via `supabase login`)
+- GitHub repository connected (for CI/CD and auto-migrations)
 
-### Deploy to Production
+### Auto-Deploy to Production
 
 ```bash
-# Build locally
-npm run build
+# 1. Make changes + create migration (if schema change)
+git add supabase/migrations/20260522000000_feature.sql
+git add app/...
 
-# Deploy to Vercel (production)
-vercel deploy --prod
+# 2. Push to master
+git commit -m "feat: Add feature"
+git push origin master
 
-# Or push to main branch (auto-deploys via CI/CD)
-git push origin main
+# 3. Automatic deployment happens:
+# → GitHub Actions: lint, type-check, build, security audit
+# → GitHub Action: deploy-migrations.yml applies migrations to Supabase
+# → Vercel: auto-deploys to production
+# ✅ Done!
 ```
 
-### Deploy Edge Functions
+### CI/CD Pipeline
+
+**Active Workflows** (in `.github/workflows/`):
+- `ci.yml` — Lint & TypeScript checks on every push/PR
+- `deploy-migrations.yml` — Auto-apply Supabase migrations on master (v6.1+)
+- `health-check.yml` — 5-minute health monitoring + Slack alerts
+- `deploy-notify.yml` — Post deployment status to PR comments
+
+**View Workflow Runs:**
+https://github.com/baybrookllc/movieknight/actions
+
+### Manual Edge Function Deployment
 
 ```bash
 # Redeploy all functions
@@ -214,17 +231,25 @@ supabase functions deploy --project-ref nwvliipxqedueskhxdym
 supabase functions deploy semantic-search --project-ref nwvliipxqedueskhxdym
 ```
 
-### Database Migrations
+### Manual Database Migrations
 
 ```bash
 # View applied migrations
 supabase migration list --linked
 
-# Push pending migrations
+# Push pending migrations (or let GitHub Action do it)
 supabase db push --linked
 
-# Manually run SQL in Supabase Dashboard → SQL Editor
+# View function logs
+supabase functions logs semantic-search
 ```
+
+### Vercel Config
+
+**v6.1+ Update:** Configuration migrated to TypeScript
+- File: `vercel.ts` (replaces old `vercel.json`)
+- Benefits: Type-safe, environment-aware, dynamic configuration
+- Auto-detected by Vercel — no action needed
 
 ---
 
