@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import { getAvatarUrl, TMDB_IMG, releaseYear } from '@/lib/utils';
+import TriggerWarnings from '@/components/TriggerWarnings';
 
 // AskClaude — lazy-loaded AI assistant
 const AskClaude = dynamic(() => import('@/components/AskClaude'), { ssr: false });
@@ -260,6 +261,9 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Content Warnings — Does the Dog Die */}
+      {user && <TriggerWarnings userId={user.id} />}
 
       {/* Ask Claude — taste analyzer */}
       <div style={card}>
