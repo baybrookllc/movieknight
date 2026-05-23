@@ -6,6 +6,267 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [v6.5] - 2026-05-22
+
+### ⚠️ Trigger Warning Filtering Integration
+
+**Added**
+- **Trigger warnings filtering on browse/search** — User preferences automatically filter results
+  - Browse RPC extended with `p_user_id` and `p_filter_hidden_triggers` parameters
+  - GIN index on `dtdd_cache.topics` for fast JSONB filtering
+  - Filter toggle on browse page ("Hide my warnings") — disabled for guests, enabled only when authenticated
+  - Search results client-side filtering when toggle enabled
+
+**Changed**
+- `browse_titles` RPC: Added trigger warning filtering logic
+  - LEFT JOINs to `dtdd_cache` and `user_trigger_prefs`
+  - Filters out titles with user's hidden triggers when enabled
+  - Backward compatible — filtering disabled by default
+- BrowseClient component: Added trigger data fetching and filtering
+  - Batch-fetches trigger data from `dtdd_cache` to avoid N+1 queries
+  - Caches user preferences in component state
+  - Filter toggle synced with RPC parameters
+- TitleCard component: Trigger warning badges
+  - Displays "⚠ {count}" badges for flagged triggers
+  - Tooltip shows full trigger names on hover
+  - Orange/yellow styling with backdrop blur effect
+  - Only shows for 'flag' actions (hidden titles don't appear)
+
+**Deployment**
+- Version bumped to v6.5
+- Timestamp: 2026-05-22 20:35:00
+- All migrations applied via `supabase db push`
+- Production live at https://movieknight.ca
+
+---
+
+## [v6.4] - 2026-05-22
+
+### 🚨 Content Warning Profile Component
+
+**Added**
+- **TriggerWarnings component** — Comprehensive trigger preferences management on profile
+  - Master toggle `tw_enabled` to enable/disable all filtering
+  - Per-topic flag/hide buttons with vote percentages
+  - Fetches last 10 watched titles to show related triggers
+  - Calls `dtdd-fetch` edge function to fetch latest trigger data
+  - Upserts user preferences to `user_trigger_prefs` table
+
+**Changed**
+- Profile page integrates new TriggerWarnings component
+- Shows loading spinner while fetching trigger data
+- Empty state messages for users with no watch history
+
+**Deployment**
+- Version bumped to v6.4
+- Timestamp: 2026-05-22 20:00:00
+- Component tested and verified in production
+
+---
+
+## [v6.3] - 2026-05-22
+
+### 🐛 Fix: Proper 404 Handling on Title Detail Page
+
+**Fixed**
+- **Title detail page returning HTTP 200 for invalid titles** — Now properly returns 404
+  - Changed from rendering fallback div to using Next.js `notFound()` function
+  - Ensures invalid title IDs (e.g., `/note`) trigger proper error boundary
+  - Fixes production error ID: `yul1::hth5f-1779468204711-79a9f8237979`
+
+**Changed**
+- `app/(app)/[titleId]/page.tsx`: Replaced fallback rendering with `notFound()`
+
+**Deployment**
+- Version bumped to v6.3
+- Timestamp: 2026-05-22 18:00:00
+- Error page now returns HTTP 404 (verified in production)
+
+---
+
+## [v6.2] - 2026-05-22
+
+### 🤖 Claude Assistant: Vercel AI Gateway Migration
+
+**Fixed**
+- **Claude API key empty in production** — Switched to Vercel AI Gateway with OIDC
+  - Root cause: `ANTHROPIC_API_KEY=""` (empty string in Vercel Production)
+  - Deprecated model: `claude-3-5-haiku-20241022` (EOL February 2026)
+
+**Changed**
+- Replaced `@anthropic-ai/sdk` with `ai` + `@ai-sdk/gateway` packages
+- Updated model reference to `anthropic/claude-haiku-4.5`
+- OIDC authentication auto-uses `VERCEL_OIDC_TOKEN` (injected by Vercel)
+- Removed hard API key requirement
+
+**Added**
+- User credit card linked to Vercel account (required for AI Gateway free tier)
+
+**Deployment**
+- Version bumped to v6.2
+- Timestamp: 2026-05-22 22:00:00
+- Claude assistant 100% operational in production
+- Verified: `POST /api/claude/ask` returns proper recommendations
+
+---
+
+## [v6.1.1] - 2026-05-22
+
+### 🔧 Vercel Configuration: JSON to TypeScript Migration
+
+**Fixed**
+- **Multiple config files conflict** — Removed old `vercel.json` after migration to `vercel.ts`
+  - Vercel 54.2.0+ requires exactly ONE configuration file
+  - Production build failing with "Multiple config files found" error
+  - Forced redeploy after removal
+
+**Changed**
+- Deleted `vercel.json` (superseded by `vercel.ts`)
+- Vercel now correctly uses single TypeScript config
+- Build succeeded: `✓ Compiled successfully in 11.7s`
+
+**Deployment**
+- Version remains v6.1 (patch rollup)
+- Timestamp: 2026-05-21 21:30:00
+- Production redeployed and verified operational
+
+---
+
+## [v6.1] - 2026-05-22
+
+### ⚙️ Integration Automation & Supabase/Vercel Config Upgrades
+
+**Added**
+- **GitHub Action for auto-migrations** (`.github/workflows/deploy-migrations.yml`)
+  - Triggers on push to `supabase/migrations/` or `supabase/config.toml`
+  - Uses `SUPABASE_ACCESS_TOKEN` (added to GitHub secrets)
+  - Automatically applies migrations to production database
+  - Eliminates manual `supabase db push` step
+
+**Changed**
+- **Vercel config upgrade**: `vercel.json` → `vercel.ts`
+  - TypeScript configuration with full type safety
+  - Environment-aware dynamic configuration support
+  - Installed `@vercel/config` dev dependency
+  - Auto-detected by Vercel (no action required)
+
+**Added**
+- **INTEGRATION_SETUP.md** — Comprehensive setup guides for:
+  - Vercel ↔ Supabase integration (auto-sync secrets)
+  - Supabase GitHub branching (preview DBs per PR)
+  - Supabase CLI upgrade instructions
+
+**Deployment**
+- Version bumped to v6.1
+- Timestamp: 2026-05-22 10:00:00
+- All integrations tested and documented
+
+---
+
+## [v6.0] - 2026-05-21
+
+### 🔍 SSR Fix: Keyword Search OR-Matching for Mood Recommendations
+
+**Fixed**
+- **Hero recommendations empty for all moods** — Keyword RPC using AND-matching returned 0 results
+  - Root cause: `plainto_tsquery` requires ALL words to appear in single title
+  - Mood query example: "mind-blowing psychological mind-bending thriller" = no matches
+  - Solution: OR-based matching for compound queries
+  - Vote-weighted ranking with quality filter (vote_average >= 5.5)
+
+**Added**
+- Migration `20260521200000_keyword_search_or_match.sql` — Rewritten `get_titles_by_keywords` RPC
+  - Splits query on whitespace, joins with ` | ` for OR matching
+  - Vote-weighted ranking: `ts_rank * (0.5 + vote_average/20)`
+  - Quality filters: `vote_average >= 5.5 AND poster_path IS NOT NULL`
+- Migration `20260521210000_keyword_search_type_fix.sql` — Added `::float` cast fix
+  - Resolved PostgREST 400 error (type `42804`)
+
+**Verified**
+- All 8 moods now SSR with real results
+- Top hits: The Twilight Zone (Mind-blowing), Seth MacFarlane's Cavalcade (Funny), Chicago Fire (Thrilling), etc.
+
+**Deployment**
+- Version bumped to v6.0
+- Timestamp: 2026-05-21 21:30:00
+- All mood recommendations live and working
+
+---
+
+## [v5.9] - 2026-05-21
+
+### 🏥 Hero Recommendation Feature: Root Cause Fix
+
+**Fixed (3 critical issues)**
+1. **`get_titles_by_keywords` RPC missing in production**
+   - Migration `20260520000001` registered but never executed
+   - Created new migration `20260521190000_keyword_search_rpc_fix.sql`
+   - Added GIN index, GRANT EXECUTE, schema reload notification
+
+2. **`semantic-search` edge function rejecting anonymous users**
+   - RPC had `verify_jwt=true` (default)
+   - Added `supabase/config.toml` with function-level config
+   - Set `verify_jwt = false` for anonymous access
+
+3. **Rate limiter denying ALL traffic when Upstash unconfigured**
+   - `_shared/rate-limit.ts` "fails closed" on missing env vars
+   - Changed unconfigured-fallback to "fail open with warning"
+   - Unblocked edge functions: tmdb-cache, generate-embedding, tv-seasons, tv-auth, dtdd-fetch
+
+**Added**
+- `supabase/config.toml` — Declarative edge function auth configuration
+
+**Changed**
+- `_shared/rate-limit.ts` — Fail-open behavior with warning logging
+
+**Verified**
+- `POST /rest/v1/rpc/get_titles_by_keywords` → HTTP 200
+- `GET /functions/v1/semantic-search` (anon) → HTTP 200
+- Hero page renders with real mood recommendations
+
+**Deployment**
+- Version bumped to v5.9
+- Timestamp: 2026-05-21 19:45:00
+- Production restored and fully operational
+
+---
+
+## [v5.8] - 2026-05-21
+
+### ✅ Guest Access & Home Page Optimization
+
+**Fixed**
+1. **Mandatory login landing page removed**
+   - `/home`, `/browse`, `/trending` removed from PROTECTED routes
+   - Guests can now access home page with recommendations
+
+2. **Home page infinite spinner + 20-second timeout**
+   - Root cause: Semantic-search taking 8-12+ seconds (OpenAI embeddings)
+   - Timeout escalation: 5s→12s (SSR), 8s→12s (client), 15s→20s (safety net)
+   - **Two-tier strategy implemented:**
+     - Server-side: Fast keyword search (database, <100ms)
+     - Client-side: Semantic search with keyword fallback on error/timeout
+   - Result: Home page renders instantly with keyword recommendations, semantic search as async enhancement
+
+**Added**
+- `app/(app)/home/HomeClient.tsx` — New client component
+  - `keywordSearch()` function for fast SSR fallback
+  - Semantic search with automatic fallback on error/timeout
+  - Error UI with retry button
+
+**Changed**
+- `app/(app)/home/page.tsx` — Switched to keyword search for SSR
+- `lib/version.ts` — Updated timestamp
+- Timeout thresholds across all components
+- Rate limit fallback behavior
+
+**Deployment**
+- Version bumped to v5.8
+- Timestamp: 2026-05-21 19:15:00
+- Zero build errors, all routes deployed
+
+---
+
 ## [v5.6] - 2026-05-18
 
 ### 🔧 batchRpcs Utility + Promise.all() Audit

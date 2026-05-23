@@ -87,6 +87,24 @@ User clicks status button (Want/Watching/Watched/Dropped)
   → On error: revert optimistic update, show toast
 ```
 
+### 5. Browse with Trigger Warning Filtering (v6.5+)
+```
+User navigates to browse page
+  → Load user's trigger preferences from user_trigger_prefs table
+  → User toggles "Hide my warnings" checkbox
+  → browse_titles RPC called with p_user_id and p_filter_hidden_triggers
+  → RPC filters out titles with user's hidden triggers via GIN index on dtdd_cache.topics
+  → Results rendered with trigger badges for "flagged" triggers
+  → Badge shows count + trigger names in tooltip
+
+Search results filtering:
+  → Merge TMDB and semantic-search results
+  → If "Hide my warnings" enabled:
+    - Batch-fetch trigger data for all results (single query to dtdd_cache)
+    - Filter out titles with hidden triggers client-side
+  → Display results with badges for flagged triggers
+```
+
 ---
 
 ## Database Design Decisions

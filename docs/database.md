@@ -173,6 +173,55 @@ Direct messages between users.
 
 ---
 
+### `dtdd_cache`
+Cached content warnings from DoesTheDogDie.com API.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `title_id` | text | PK, FK → `titles.id` |
+| `topics` | jsonb | Array of `{topicKey, topicName, yesSum, noSum}` |
+| `cached_at` | timestamptz | 30-day TTL |
+
+**Indexes:**
+- `idx_dtdd_cache_topics_gin` — GIN on `topics` (fast JSONB filtering)
+
+---
+
+### `user_trigger_prefs`
+User's trigger warning preferences.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `user_id` | uuid | FK → `auth.users`, part of PK |
+| `topic_key` | text | DTDD topic key (e.g., "dog dies"), part of PK |
+| `action` | text | `'flag'` (show badge) or `'hide'` (filter out) |
+
+**Unique constraint:** `(user_id, topic_key)`
+**RLS:** User can only read/write own preferences
+
+---
+
+### `title_streaming_platforms`
+Titles available on streaming services (future data source: TMDB watch providers).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `title_id` | text | FK → `titles.id` |
+| `platform_id` | integer | FK → `streaming_platforms.id` |
+
+---
+
+### `streaming_platforms`
+Catalog of streaming services (Netflix, Prime, etc.).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | integer | PK |
+| `name` | text | e.g., `"Netflix"`, `"Prime Video"` |
+| `logo_path` | text | TMDB provider logo URL |
+
+---
+
 ## RPC Functions
 
 ### `match_titles`
@@ -189,28 +238,38 @@ RETURNS TABLE (title_id text, similarity float)
 ```
 
 ### `browse_titles`
-Filtered title browsing with pagination.
+Filtered title browsing with pagination and trigger warning filtering (v6.5+).
 
 ```sql
 browse_titles(
-  p_media_type   text    DEFAULT NULL,
-  p_genre_ids    int[]   DEFAULT NULL,
-  p_min_rating   float   DEFAULT 0,
-  p_year_from    int     DEFAULT NULL,
-  p_year_to      int     DEFAULT NULL,
-  p_country      text    DEFAULT NULL,
-  p_cvrs         text    DEFAULT NULL,
-  p_language     text    DEFAULT NULL,
-  p_runtime_min  int     DEFAULT NULL,
-  p_runtime_max  int     DEFAULT NULL,
-  p_platform_ids int[]   DEFAULT NULL,
-  p_limit        int     DEFAULT 40,
-  p_offset       int     DEFAULT 0
+  p_media_type              text    DEFAULT NULL,
+  p_genre_ids               int[]   DEFAULT NULL,
+  p_min_rating              float   DEFAULT 0,
+  p_year_from               int     DEFAULT NULL,
+  p_year_to                 int     DEFAULT NULL,
+  p_country                 text    DEFAULT NULL,
+  p_cvrs                    text    DEFAULT NULL,
+  p_language                text    DEFAULT NULL,
+  p_runtime_min             int     DEFAULT NULL,
+  p_runtime_max             int     DEFAULT NULL,
+  p_platform_ids            int[]   DEFAULT NULL,
+  p_limit                   int     DEFAULT 40,
+  p_offset                  int     DEFAULT 0,
+  p_user_id                 uuid    DEFAULT NULL,
+  p_filter_hidden_triggers  boolean DEFAULT false
 )
 RETURNS TABLE (id, title, overview, poster_path, backdrop_path, release_date,
                vote_average, media_type, popularity, runtime, origin_country,
                certification_ca, original_language)
 ```
+
+**Parameters (v6.5 additions):**
+- `p_user_id` — User ID for trigger filtering (NULL = no filtering)
+- `p_filter_hidden_triggers` — Enable/disable trigger filtering (default false)
+
+**Behavior:**
+- When `p_filter_hidden_triggers = true` AND `p_user_id` is provided, excludes titles with user's hidden triggers
+- Backward compatible — filtering disabled by default for existing code
 
 ### `get_for_you_feed`
 Personalized recommendations based on watch history and friend activity.
@@ -238,6 +297,9 @@ RETURNS TABLE (... Title fields ..., match_pct float, friend_count int, friend_a
 | `list_items` | Owner + members + public (if list is public) | Owner + editors |
 | `list_members` | Owner + members | Owner only |
 | `messages` | Sender + receiver | Sender only |
+| `dtdd_cache` | Public | Service role only (from edge function) |
+| `user_trigger_prefs` | Owner only | Owner only |
+| `title_streaming_platforms`, `streaming_platforms` | Public | Authenticated (insert only) |
 
 ---
 
@@ -264,6 +326,11 @@ All migrations are in `supabase/migrations/`. Applied in timestamp order.
 | `20260515000005` | Performance refinement (follows, profiles indexes) |
 | `20260515000006` | for_you CTE optimization |
 | `20260516000001` | for_you feed optimization (NOT EXISTS rewrite) |
+| `20260520000001` | Keyword search RPC (initial version) |
+| `20260521190000` | Keyword search RPC fix (added GIN index, schema reload) |
+| `20260521200000` | Keyword search OR-matching (compound query support) |
+| `20260521210000` | Keyword search type fix (::float cast for vote_average) |
+| `20260522000001` | Trigger warning filtering (browse_titles extension) |
 
 ---
 

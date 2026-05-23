@@ -3,8 +3,8 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.0 (May 21, 2026 · 21:30 UTC)  
-**Status:** 🟢 Production-ready · SSR hero recommendations · Automated deployments · Health monitoring
+**Current Version:** v6.5 (May 22, 2026 · 20:35 UTC)  
+**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments
 
 ---
 
@@ -13,9 +13,11 @@
 - **Semantic Search** — Find titles by mood/vibe ("mind-bending thriller", "cozy comfort watch")
 - **Episode Tracking** — Mark individual episodes as watched with persistent state
 - **Smart Browsing** — 9-filter system (Genre, Rating, Year, Format, Platform, Runtime, Country, CVRS, Language)
+- **Trigger Warning Filtering** — Automatically filter browse/search results based on personal trigger preferences (flag/hide)
+- **Content Warnings** — Integration with DoesTheDogDie.com (DTDD) with customizable preferences and filtering
 - **Social Features** — Public/private watchlists, community ratings, share by username
-- **Content Warnings** — Integration with DoesTheDogDie.com (DTDD) for trigger warnings
-- **User Profiles** — Avatar generation, genre DNA, watch history
+- **AI Assistant** — In-app Claude AI for recommendations, taste analysis, and personalized suggestions
+- **User Profiles** — Avatar generation, genre DNA, watch history, trigger preferences
 - **Real-time Sync** — All data persists across devices via Supabase
 
 ---

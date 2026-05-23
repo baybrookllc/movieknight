@@ -1,23 +1,24 @@
-# Integration Setup Guide (v6.1.1)
+# Integration Setup Guide (v6.5)
 
-> **Status**: Auto-migrations ready ✅ | Production deployed ✅ | Dashboard integrations optional ⏳
+> **Status**: All integrations operational ✅ | Production deployed ✅ | Trigger warning filtering live ✅
 
-**Latest Update:** Production deployment issue resolved (v6.1.1). Vercel config conflict fixed by removing old vercel.json. All systems operational.
+**Latest Update:** v6.5 deployed with complete trigger warning filtering implementation. All integrations tested and working. Vercel AI Gateway active for Claude assistant.
 
-This guide walks through the remaining setup to fully integrate Supabase ↔ GitHub ↔ Vercel.
+This guide documents the active integrations connecting Supabase ↔ GitHub ↔ Vercel.
 
 ---
 
-## 🚀 Current Deployment Status (2026-05-22 21:36 UTC)
+## 🚀 Current Deployment Status (2026-05-22 20:35 UTC)
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Production** | 🟢 LIVE | v6.0 · Commit 3115631 · movieknight.ca operational |
-| **Auto-Migrations** | ✅ ARMED | GitHub Action ready, awaiting first test |
-| **Vercel Config** | ✅ UPGRADED | vercel.ts (TypeScript) active, old vercel.json removed |
-| **Build Status** | ✅ SUCCESSFUL | 21 pages generated, 11.7s compile time |
-| **Health Checks** | ✅ PASSING | /api/health returning 200, homepage SSR working |
-| **GitHub Secrets** | ✅ CONFIGURED | SUPABASE_ACCESS_TOKEN added for migrations |
+| **Production** | 🟢 LIVE | v6.5 · All features operational · movieknight.ca |
+| **Auto-Migrations** | ✅ ACTIVE | GitHub Action tested and working (deployed v6.5 migration) |
+| **Vercel Config** | ✅ ACTIVE | vercel.ts (TypeScript) in use, migrations auto-deploy |
+| **Build Status** | ✅ SUCCESSFUL | Latest: Trigger warning filtering deployed |
+| **Health Checks** | ✅ PASSING | All endpoints responding, database indexes active |
+| **GitHub Secrets** | ✅ CONFIGURED | SUPABASE_ACCESS_TOKEN configured for auto-migrations |
+| **Vercel AI Gateway** | ✅ ACTIVE | Claude assistant working with OIDC authentication |
 
 ---
 

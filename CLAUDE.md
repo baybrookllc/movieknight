@@ -29,6 +29,28 @@
 
 ## Session History
 
+### 2026-05-22 — Trigger Warnings Filtering: Browse & Search Integration (v6.5)
+- **Goal**: Enable trigger warning preferences set on profile to automatically filter browse/search results
+- **Implementation**: Hybrid approach (RPC-level for browse, client-side for search)
+- **Database**: Extended `browse_titles()` RPC with trigger filtering params + GIN index on dtdd_cache.topics
+- **Frontend**: Added filter toggle to BrowseClient, trigger badges to TitleCard
+- **Status**: ✅ LIVE — Full feature operational, database migration applied
+- **Commits**: `0a90dfa` (migration fix), `2433713` (main implementation)
+
+### 2026-05-22 — Profile Trigger Warnings Component (v6.4)
+- Created `components/TriggerWarnings.tsx` — full DTDD integration on profile page
+- Displays user's trigger preferences with master toggle and per-topic flag/hide actions
+- Fetches recent watched titles and queries dtdd-fetch edge function
+- Integrated into profile page between Account Settings and AI Assistant sections
+- **Status**: ✅ LIVE — Profile component fully operational
+- **Commit**: `7ad9985`
+
+### 2026-05-22 — 404 Error Fix: Title Detail Page (v6.3)
+- Fixed `/[titleId]` route to properly handle invalid title IDs
+- Changed from returning 200 with fallback message → proper Next.js `notFound()` call
+- **Status**: ✅ LIVE — Proper 404 error boundaries in place
+- **Commit**: `f663134`
+
 ### 2026-05-22 — Claude Assistant Fix: Vercel AI Gateway (v6.2)
 - Root cause found: `ANTHROPIC_API_KEY=""` (empty) + model `claude-3-5-haiku-20241022` deprecated since Feb 2026
 - Implemented Vercel AI Gateway with OIDC (Option B): `ai` + `@ai-sdk/gateway` packages
@@ -53,33 +75,58 @@
 
 ## Current Session Status
 
-**Date:** 2026-05-22 (Claude Assistant Fix — v6.2)
+**Date:** 2026-05-22 (Trigger Warnings Filtering — v6.5)
 **Branch:** master
-**Last commit:** `e82d708` (Vercel AI Gateway + OIDC auto-auth)
-**Production Status:** 🟢 LIVE — v6.2 · 2026-05-22 22:00:00 · Claude assistant 100% working
+**Last commits:** 
+- `0a90dfa` (fix: Use CASCADE in DROP FUNCTION for safer migration)
+- `2433713` (feat: Implement trigger warnings filtering on browse/search pages)
+**Production Status:** 🟢 LIVE — v6.5 · 2026-05-22 20:35:00 · Trigger warnings filtering fully operational
 
-### ✅ Completed (v6.2 — 2026-05-22 Claude Assistant Fix)
+### ✅ Completed (v6.5 — 2026-05-22 Trigger Warnings Filtering)
 
-**Root Cause:** `ANTHROPIC_API_KEY=""` (empty string in Vercel Production) + deprecated model  
-**Fix:** Migrated to Vercel AI Gateway with OIDC authentication
+**Feature:** Re-enable trigger warnings from profile to automatically filter browse/search results
 
-1. **Diagnosed real error** — pulled production env, confirmed `ANTHROPIC_API_KEY=""` was the cause
-2. **Migrated to Vercel AI SDK** — replaced `@anthropic-ai/sdk` with `ai` + `@ai-sdk/gateway`
-3. **OIDC authentication** — `createGateway({})` auto-uses `VERCEL_OIDC_TOKEN` (injected by Vercel)
-4. **Model updated** — `claude-3-5-haiku-20241022` (EOL Feb 2026) → `anthropic/claude-haiku-4.5`
-5. **User added credit card** to Vercel account (required to unlock AI Gateway free tier)
-6. **Verified end-to-end in production** — full movie recommendation response confirmed via API test
+**Backend (Database):**
+1. Created migration `20260522000001_add_trigger_filter_to_browse.sql`
+   - Extended `browse_titles()` RPC with trigger filtering parameters (`p_user_id`, `p_filter_hidden_triggers`)
+   - Added LEFT JOINs to `dtdd_cache` and `user_trigger_prefs` for filtering logic
+   - Added GIN index on `dtdd_cache.topics` for fast JSONB queries
+   - Backward compatible (filtering disabled by default)
+   - Applied to production via `supabase db push --linked --include-all`
 
-**Evidence of production working:**
-- `POST https://movieknight.ca/api/claude/ask` → HTTP 200
-- Response: Quality Interstellar-style recommendations (Arrival, The Martian, Dune)
-- Tokens: input=162, output=197
+**Frontend (React Components):**
+1. **BrowseClient.tsx** — Browse & search filtering
+   - Added state for trigger filter toggle, user preferences, trigger data by title
+   - Created `fetchTriggersForResults()` to batch-fetch trigger data from Supabase
+   - Updated `buildParams()` to pass trigger filtering params to RPC
+   - Added "Hide my warnings" toggle in filter bar (auth users only, disabled state for guests)
+   - Implemented client-side filtering for search results (TMDB + semantic merged results)
+   - Pass trigger data and preferences to TitleCard components
+
+2. **TitleCard.tsx** — Trigger warning badges
+   - Added props: `triggerTopics`, `userTriggerPrefs`
+   - Added ⚠️ badge (top-right, orange/yellow #f59e0b) showing count of flagged triggers
+   - Badge only displays for 'flag' action (hidden titles invisible)
+   - Tooltip on hover displays full trigger names
+
+**Version Bump:**
+- v6.4 → v6.5
+- Timestamp: 2026-05-22 20:35:00
+
+**Verification:**
+- ✅ v6.5 deployed to production via Vercel
+- ✅ Database migration applied to Supabase
+- ✅ All frontend code compiled without errors
+- ✅ Trigger toggle appears in browse filters
+- ✅ Trigger badges render on title cards
 
 ### 🔴 Issues Identified
-- None blocking. `ANTHROPIC_API_KEY` env var still present in Vercel but now unused (safe to leave)
+- None. Feature is fully operational and deployed.
 
 ### 📋 Next Session
-No pending technical work. Claude assistant is fully operational.
+- Test trigger warnings in production (user flow: set prefs on /profile → browse with toggle enabled → verify filtering works)
+- Monitor for any edge cases in filtering logic
+- Optional: Update user documentation/onboarding about trigger warnings feature
 
 ---
 
