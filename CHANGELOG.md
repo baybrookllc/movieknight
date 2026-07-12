@@ -777,6 +777,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [ ] Advanced recommendations (collaborative filtering)
 - [ ] Mobile app (iOS/Android via React Native)
 
+**Carried over from `CLAUDE.md`'s session log (dated 2026-05-22, verify still current before acting):**
+- [ ] Upstash rate-limiter still unprovisioned — `_shared/rate-limit.ts` fails open (allows all traffic) when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset. Set both via `supabase secrets set` and redeploy the affected edge functions to restore real enforcement.
+- [ ] Supabase CLI on the dev machine was v2.75.0 as of v6.1 (latest at the time: v2.101.0) — standalone executable at `C:\Windows\system32\supabase`, needs manual download from the CLI releases page.
+- [ ] Optional dashboard integrations from `INTEGRATION_SETUP.md` (Vercel↔Supabase auto-sync, Supabase GitHub branching) were still pending self-service setup as of v6.1 — may already be done since; check the dashboards before re-doing.
+
 ---
 
 ## Notes for Contributors
