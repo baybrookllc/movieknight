@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import TrackerRow from '@/components/TrackerRow';
 import { FUNCTIONS_URL, TMDB_BACKDROP, TMDB_IMG, truncate, getAvatarUrl, timeAgo, getAuthHeader } from '@/lib/utils';
+import { activateOnKey } from '@/lib/a11y';
 
 /* ── Types (exported so the server page can reference them) ────── */
 export interface MatchTitle {
@@ -242,8 +243,10 @@ function RightSidebar() {
           </div>
         ) : (
           lists.slice(0, 4).map((l) => (
-            <div key={l.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-              onClick={() => router.push(`/list/${l.id}`)}>
+            <div key={l.id} role="button" tabIndex={0} aria-label={`Open list: ${l.title}`}
+              style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+              onClick={() => router.push(`/list/${l.id}`)}
+              onKeyDown={activateOnKey(() => router.push(`/list/${l.id}`))}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{l.title}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {l.item_count} titles · {l.like_count} likes
@@ -627,8 +630,10 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
           <div>
             <div className="section-header">
               <h3 className="section-title">Quick picks for you</h3>
-              <span style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
-                onClick={() => loadRecommendation(activeMood)}>
+              <span role="button" tabIndex={0} aria-label="Show more recommendations"
+                style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
+                onClick={() => loadRecommendation(activeMood)}
+                onKeyDown={activateOnKey(() => loadRecommendation(activeMood))}>
                 Swipe to explore more →
               </span>
             </div>
@@ -641,7 +646,11 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
                   <div
                     key={p.id}
                     className="quick-pick-card"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View ${p.title}`}
                     onClick={() => router.push(`/${p.id}`)}
+                    onKeyDown={activateOnKey(() => router.push(`/${p.id}`))}
                   >
                     {p.poster_path ? (
                       <Image
@@ -681,12 +690,18 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
       {/* ── Trailer modal ────────────────────────────────────────── */}
       {showTrailer && trailerKey && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Trailer"
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
           onClick={() => setShowTrailer(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowTrailer(false); }}
           style={{
             position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(0,0,0,0.9)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
+            padding: 24, outline: 'none',
           }}
         >
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 900, position: 'relative' }}>

@@ -101,6 +101,9 @@ export default function TitleCard({
           {/* Trigger warnings badge */}
           {flaggedTriggers.length > 0 && (
             <div
+              tabIndex={0}
+              role="note"
+              aria-label={`Content warnings: ${flaggedTriggers.map(t => t.topicName).join(', ')}`}
               style={{
                 position: 'absolute', top: 8, right: 8,
                 background: 'rgba(245, 158, 11, 0.9)',

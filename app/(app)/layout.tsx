@@ -20,11 +20,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavProvider>
             {/* Captures console logs, errors, network timings, and Core Web Vitals */}
             <DebugProvider />
+            <a href="#main-content" className="skip-link">Skip to main content</a>
             <div className="app-shell">
               <Header />
               <Sidebar />
               <MobileOverlay />
-              <main className="app-main">
+              <main id="main-content" tabIndex={-1} className="app-main">
                 {children}
               </main>
               <AppFooter />

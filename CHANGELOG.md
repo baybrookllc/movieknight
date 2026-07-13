@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [v6.8] - 2026-07-12
+
+### ♿ Accessibility pass (Next-milestone)
+
+Addresses the accessibility findings from the codebase audit
+(`ADAM_DOCS/movieknight-audit-report.md` §8). Verified in-browser where the
+surface is reachable locally.
+
+**Fixed**
+- **Home hero is now keyboard-operable.** The "Quick picks" cards, "Popular
+  Lists" rows, and the "Swipe to explore more" control were plain `<div>`/`<span
+  onClick>` with no keyboard affordance — unreachable by keyboard or screen
+  reader. All now have `role="button"`, `tabIndex={0}`, an `onKeyDown`
+  (Enter/Space via the new `lib/a11y.ts` `activateOnKey` helper), and an
+  `aria-label`. (verified: 7 quick-pick cards + the "show more" control expose
+  the button role in the DOM)
+- **Trigger-warning badge is no longer mouse-hover-only.** `TitleCard`'s badge
+  is now focusable (`tabIndex={0}`, `role="note"`) with an `aria-label` listing
+  the topics, so keyboard/screen-reader users can read what the "⚠ N" means.
+- **`--text-dim` now meets WCAG AA.** Changed `#555870` (~2.5:1, failed) to
+  `#8085a0` (≥4.5:1 on every surface token, computed), fixing contrast on the
+  search placeholder, keyboard hint, and clear buttons.
+- **Visible keyboard focus.** Added a global `:focus-visible` ring and removed
+  the Browse search input's `outline: none` (which had left keyboard users with
+  no focus indicator — WCAG 2.4.7).
+
+**Added**
+- **"Skip to main content" link** in the app shell (`app/(app)/layout.tsx` +
+  `.skip-link` styles), with `id="main-content"`/`tabIndex={-1}` on `<main>`, so
+  keyboard users can bypass the header + 9-item sidebar. (verified live)
+- **ARIA on the account menu and search inputs.** The header avatar button now
+  has `aria-haspopup`/`aria-expanded`/`aria-label` and the menu closes on
+  Escape; both search inputs and the Browse clear/remove-filter "×" buttons now
+  have `aria-label`s (verified live).
+- **Trailer modal dialog semantics.** `role="dialog"`, `aria-modal`, focus-moves
+  -into-dialog on open, and Escape-to-close.
+- **`lib/a11y.ts`** keyboard-activation helper with unit tests
+  (`lib/a11y.test.ts`).
+
+**Next session (remaining §8 items)**
+- Full focus-trap (not just focus-on-open) for the trailer modal and
+  SearchOverlay; `onFocus`/`onBlur` parity for hover-only card affordances
+  (`TitleCard`, `TrackerRow`). These are the lower-severity remainder.
+
+---
+
 ## [v6.7] - 2026-07-12
 
 ### ⚡ Performance — middleware scoping + next/image (Next-milestone)

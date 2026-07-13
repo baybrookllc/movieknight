@@ -32,8 +32,15 @@ export default function Header() {
         setDropdownOpen(false);
       }
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setDropdownOpen(false);
+    }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, []);
 
   // Note: '/' key is handled exclusively by SearchOverlay to avoid conflict
@@ -87,6 +94,7 @@ export default function Header() {
         <input
           id="global-search"
           type="text"
+          aria-label="Search movies, shows, actors or vibes"
           placeholder="Search movies, shows, actors or vibes..."
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -117,6 +125,9 @@ export default function Header() {
           <div ref={dropdownRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setDropdownOpen(v => !v)}
+              aria-haspopup="menu"
+              aria-expanded={dropdownOpen}
+              aria-label="Account menu"
               style={{
                 width: 36, height: 36,
                 borderRadius: '50%',
@@ -141,7 +152,7 @@ export default function Header() {
             </button>
 
             {dropdownOpen && (
-              <div style={{
+              <div role="menu" aria-label="Account menu" style={{
                 position: 'absolute',
                 top: 'calc(100% + 8px)',
                 right: 0,

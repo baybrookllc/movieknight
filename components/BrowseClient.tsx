@@ -393,15 +393,17 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
             type="text" value={inputVal}
             onChange={e => setInputVal(e.target.value)}
             placeholder="Search for anything..."
+            aria-label="Search for anything"
             style={{
               width: '100%', height: 46,
               background: 'var(--bg-surface)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 14, padding: '0 44px 0 16px', outline: 'none',
+              fontFamily: 'inherit', fontSize: 14, padding: '0 44px 0 16px',
             }}
           />
           {inputVal && (
             <button onClick={() => { setInputVal(''); setQuery(''); }}
+              aria-label="Clear search"
               style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 20, cursor: 'pointer' }}>
               ×
             </button>
@@ -557,6 +559,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
               {chip.label}
               <button
                 onClick={chip.clearFn}
+                aria-label={`Remove ${chip.label} filter`}
                 style={{
                   background: 'none', border: 'none', color: 'inherit',
                   cursor: 'pointer', fontSize: 14, padding: 0, display: 'flex', alignItems: 'center',
