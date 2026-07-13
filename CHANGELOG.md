@@ -8,6 +8,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🗄️ Remediation Session 2 — migration-history baseline (v6.12, 2026-07-13)
+
+Closes the disaster-recovery gap flagged in the audit: a from-zero replay of
+`supabase/migrations/*` has never worked because the earliest tracked
+migration (`20260416000000`) assumes `titles` and other core tables already
+exist — they were created directly in the dashboard before this project
+adopted migration tracking.
+
+**Added**
+- **`supabase/migrations/20260401000000_baseline_schema.sql`** — reconstructs
+  every pre-tracking object from the live schema: 13 tables (not just
+  `titles` — `genres`, `title_genres`, `profiles`, `follows`, `watch_history`,
+  `custom_lists`, `list_members`, `list_items`, `title_embeddings`,
+  `notifications`, `list_likes`, and `messages`, which turned out to predate
+  tracking too despite a same-named migration existing — see below), the
+  `vector` extension, 15 functions, and 3 triggers (including
+  `on_auth_user_created`, the profile-auto-creation trigger on `auth.users`).
+  One deliberate omission: `watch_history_status_check`, which
+  `20260417000002_not_interested_status.sql` adds unconditionally (no `IF NOT
+  EXISTS`) — including it in the baseline would make that later statement
+  fail as a duplicate.
+  ⚠️ A live secret was incidentally exposed while inspecting the
+  `auto-embed-new-titles` trigger (its Authorization header bearer token,
+  needed to reproduce the trigger accurately) — confirmed it does **not**
+  match the app's public anon key (different length). Redacted a placeholder
+  into the migration rather than committing it; **recommend verifying/rotating
+  this token**, since its actual scope wasn't confirmed.
+- **`supabase/migrations/20260713000004_apply_missed_wave6_indexes.sql`** —
+  a real (non-history-only) fix discovered *while validating* the baseline:
+  two already-"applied" migrations never actually took effect on prod.
+  `20260515000005_performance_refinement.sql` referenced
+  `watch_history.created_at` — a column that has never existed (it's
+  `watched_at`) — so its whole transaction silently rolled back, taking 6
+  guarded indexes with it. `20260518000001_friend_requests_composite_indexes.sql`'s
+  DROP+CREATE INDEX also never ran. Both were nonetheless recorded as
+  "applied" in the remote history table. Deployed the 8 missing indexes
+  (`idx_profiles_id`, `idx_follows_follower`, `idx_follows_following`,
+  `idx_messages_receiver_unread`, `idx_watch_history_recent`,
+  `idx_list_members_user`, `idx_friend_requests_sender_status`,
+  `idx_friend_requests_receiver_status`) and dropped the stale
+  `idx_friend_requests_status` — pure performance indexes, no behavior
+  change.
+
+**Fixed**
+- `supabase/migrations/20260515000005_performance_refinement.sql` — the
+  `created_at` → `watched_at` typo above, so the file is correct for any
+  future replay (this edit doesn't retroactively re-run it on prod, hence the
+  separate migration above to actually fix prod's current state).
+
+**Validated (isolated local Postgres, throwaway, `public.ecr.aws/supabase/postgres:15.8.1.085`
+to match the linked project's Postgres 15):** all 41 migration files
+(baseline + 40 tracked) replay cleanly from a blank database. Compared the
+result against live: all 34 tables and their exact column counts match, all
+74 RLS policies match, all 166 functions match. Index diff fully explained
+(8 replay has that live doesn't = the prod drift just fixed above; 1 live has
+that replay doesn't = `idx_dtdd_cache_title_id`, a pre-existing untracked
+index already on the audit's `unused_index` deferral list, deliberately not
+added — no urgency, it's a removal candidate).
+
+**Deployed:** `supabase migration repair --status applied 20260401000000`
+(history bookkeeping only — the baseline's objects already exist live, so it
+was never executed there) + `supabase db push` for the index-fix migration
+(confirmed: `supabase migration list` now shows Local↔Remote fully matched on
+every version, including the two new ones).
+
 ### 🧹 Remediation Session 1 — quick wins (v6.11, 2026-07-13)
 
 First session of the post-audit remediation plan (deferred DB items +
@@ -85,8 +150,13 @@ P0); consolidating `multiple_permissive_policies` (21 advisor rows but only 2
 tables — `list_members` and `messages` — already root-caused); dropping
 `unused_index` findings (59 live now, not 41 — mostly on tables too young for
 `pg_stat` to mean anything, recommend a 60-90 day recheck instead of acting
-now); the migration-history bootstrap-gap baseline (deploy-blocking symptom
-fixed; from-zero-replay gap remains).
+now).
+
+~~The migration-history bootstrap-gap baseline~~ — **✅ resolved 2026-07-13**
+(Remediation Session 2, above): a from-zero replay of the full migration
+history now succeeds and reconstructs the live schema (verified table/column/
+policy/function parity). Found and fixed real prod drift along the way — see
+Session 2 for detail.
 
 **Pre-existing, not yet touched:** Playwright e2e tests, accessibility
 focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch

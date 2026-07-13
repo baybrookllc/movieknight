@@ -59,7 +59,7 @@ BEGIN
     SELECT 1 FROM pg_indexes
     WHERE schemaname = 'public' AND tablename = 'watch_history' AND indexname = 'idx_watch_history_recent'
   ) THEN
-    CREATE INDEX idx_watch_history_recent ON public.watch_history(user_id, created_at DESC NULLS LAST);
+    CREATE INDEX idx_watch_history_recent ON public.watch_history(user_id, watched_at DESC NULLS LAST);
   END IF;
 END $$;
 
