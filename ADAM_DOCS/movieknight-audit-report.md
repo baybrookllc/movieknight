@@ -26,9 +26,11 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 - [x] **Move the `vector` extension out of `public` — ✅ resolved 2026-07-13.** Relocated to a dedicated `extensions` schema; `match_titles`'s two overloads updated to resolve it. Validated locally with real embedding inserts + HNSW similarity queries (both roles, both overloads) before and after deploy. `extension_in_public` confirmed cleared post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 4".
 - [x] **3 `duplicate_index` pairs (`follows`, `list_members`, `messages`) — ✅ resolved 2026-07-13.** Root-caused to Session 2's index-fix migration re-creating indexes that already existed under different names; dropped the duplicates, kept the originals. Validated locally, advisor confirmed cleared post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 5".
 
-**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting, remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting (and its missing catch-all error handling), remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
 
 ~~Accessibility focus-trap/hover-parity~~ — **✅ resolved 2026-07-13 (Remediation Session 7).** A shared `useFocusTrap` hook (`lib/a11y.ts`) now handles Escape-to-close, Tab/Shift+Tab wrapping, initial focus, and focus restore across all 7 modals found in the codebase (2 separate trailer-modal implementations, search overlay, and 4 more with the identical gap not originally named in the plan). Plus 10 hover/focus-parity fixes, including 2 elements (`FriendItem`, `ListCard`) that weren't keyboard-reachable at all. Verified live: opened the search overlay via Ctrl+K, confirmed initial focus, bidirectional Tab-wrap, and Escape-close all work in the running app. Detail: `CHANGELOG.md` → "Remediation Session 7".
+
+~~Error tracking (Sentry or equivalent)~~ — **✅ resolved 2026-07-13 (Remediation Session 8).** No Sentry account/DSN existed and creating one isn't something Claude can do autonomously, so — per explicit user choice — extended the existing debug-logger/`error_logs` pipeline instead of adding a new vendor. Wired into both error boundaries, all 4 API routes, and 6 of 10 edge functions (the other 4 deliberately left alone — see `CHANGELOG.md` for why). Verified with a real deliberately-thrown error landing in `error_logs` with a real stack trace; all 6 edge functions redeployed and smoke-tested post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 8".
 
 > **Update 2026-07-13 (remediation Session 1 — see `CHANGELOG.md` "Remediation Session 1"):** product-naming unification (cosmetic scope — display strings only, not the Vercel domain or webOS bundle ID), git tags (v6.1–v6.10, not yet pushed to origin as of this writing), `cors.ts`/`cron/health-check` dead-code deletion, and the `npm run lint` failure are now **done**. The lint failure turned out to be 97% one `eslint.config.mjs` ignore-pattern bug (linting a nested branch checkout as app source), not a real 1,589-error backlog — real remaining count is ~50. Full remediation plan for everything still open: `C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`.
 >
@@ -37,6 +39,8 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 > **Update 2026-07-13 (remediation Session 4 — see `CHANGELOG.md` "Remediation Session 4"):** `extension_in_public` is resolved and confirmed cleared. The re-run also re-confirmed the SECURITY DEFINER RPC-executability and RLS-no-policy findings from the table below are still present — both already documented there as accepted-by-design, not new.
 >
 > **Update 2026-07-13 (remediation Session 5 — see `CHANGELOG.md` "Remediation Session 5"):** `duplicate_index` is resolved and confirmed cleared. `unused_index` is deferred again, now with concrete evidence (project-wide 0 scans including primary keys) and a scheduled 2026-09-26 recheck rather than an open-ended "someday."
+>
+> **Update 2026-07-13 (remediation Session 8 — see `CHANGELOG.md` "Remediation Session 8"):** error tracking is resolved via the existing debug-logger pipeline, not Sentry — see above.
 >
 > **Update 2026-07-13 (remediation Session 7 — see `CHANGELOG.md` "Remediation Session 7"):** accessibility focus-trap/hover-parity is resolved — see above. The remaining pre-existing gaps list (below) no longer includes it.
 
@@ -61,7 +65,7 @@ Work done against this roadmap since the audit. Ten commits on `master`, all pus
 | 8. Accessibility pass | ✅ Keyboard reachability, focus ring, ARIA, AA contrast, skip link (v6.8) + focus-trap/Escape on all 7 modals + hover/focus parity (Session 7, v6.16) done | v6.8 `c733de5`, Session 7 |
 | 9. `next/image` migration | ✅ Detail + feed posters migrated (visual QA on staging pending) | v6.7 `3d48d03` |
 | 10. `proxy.ts` matcher scoping | ✅ Done (verified) | v6.7 `3d48d03` |
-| 11. Error tracking (Sentry) | ⬜ Deferred by decision (documented gap) | — |
+| 11. Error tracking (Sentry or equivalent) | ✅ Done via existing debug-logger/`error_logs` pipeline (no Sentry account existed; extended what was already there per user decision) | Session 8, v6.17 |
 | 12. Branch reconciliation + rollback | 🟡 Dead `elegant-agnesi` deleted; `sharp-mayer` left per decision; **rollback/down-migration story still not defined** | — |
 
 ### Later — not started

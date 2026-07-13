@@ -12,6 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logEdgeError } from '../_shared/error-logger.ts';
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -50,6 +51,7 @@ serve(async (req) => {
     });
   } catch (err) {
     console.error('[notify-watchlist]', err);
+    await logEdgeError({ functionName: 'notify-watchlist', error: err });
     // Don't expose internal error details (may include email addresses from Resend responses)
     return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
   }

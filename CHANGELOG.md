@@ -8,6 +8,86 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🚨 Remediation Session 8 — error tracking (v6.17, 2026-07-13)
+
+Closes the "add error tracking (Sentry or equivalent)" roadmap item. No
+Sentry account/DSN existed and account creation isn't something I can do
+on your behalf, so — per your choice — this extends the home-grown
+telemetry pipeline that already existed (`lib/debug-logger.ts` →
+`/api/debug/ingest` → the `error_logs` table) rather than adding a new
+paid third-party vendor. That pipeline already captured client-side
+`window.onerror`/`unhandledrejection`; the gap was everywhere else:
+React error boundaries, API routes, and edge functions only `console.error`d
+with nothing persisted.
+
+**Added**
+- **`lib/client-error-report.ts`** — standalone `reportClientError()` for
+  React error boundaries. Deliberately independent of the `debugLogger`
+  singleton's init/buffer state: a boundary can fire in a context where
+  `debugLogger.init()` never ran (most notably the root-level boundary,
+  which replaces the whole document, unmounting the providers that call
+  `init()`). Does one direct POST to `/api/debug/ingest`, reusing
+  `debugLogger`'s session id so it lands in the same session.
+- **`lib/server-error-logger.ts`** — `logServerError()` for Next.js API
+  routes; inserts directly into `error_logs` via the service-role client.
+- **`supabase/functions/_shared/error-logger.ts`** — `logEdgeError()`, the
+  same contract for Deno edge functions.
+
+**Wired in:**
+- Both error boundaries — `app/error.tsx` (root; found mid-session that
+  this file is literally named `error.tsx` but contains `<html>/<body>`
+  and functions as Next's global-error boundary — a pre-existing
+  naming/convention quirk, left alone, out of scope for this session) and
+  `app/(app)/error.tsx`.
+- All 4 API routes — `claude/ask` (both the AI-call catch and the outer
+  catch; hoisted a `userId` variable since `const user` from the auth
+  check isn't visible in the outer catch's block scope), `warmup`,
+  `debug/ingest`'s own outer catch, and `health` (now logs when the check
+  reports degraded, with the check results as context).
+- 6 of 10 edge functions with an existing catch-all: `semantic-search`,
+  `delete-account` (hoisted `uid`; also added logging on the explicit
+  "auth delete failed" branch, since that's a real partial-deletion state
+  worth knowing about even though it's not a caught exception),
+  `generate-embedding`, `notify-watchlist`, `tmdb-cache`, `tv-seasons`.
+  **Deliberately not touched:** `health-monitor` (its catches are its own
+  probe-failure/Slack-alert paths — it already alerts, adding error_logs
+  rows there would double-count against real app errors), `dtdd-fetch`
+  (one `catch(_)` per-title trigger-topic lookup, deliberately silent by
+  design — logging it would be noise for an already-handled degradation),
+  and `tv-auth` (no catch-all structure at all — uses per-branch checks;
+  restructuring its error handling is a bigger, riskier change than this
+  session's scope, and it's already flagged for separate hardening work).
+
+**Verified — a deliberately-thrown error surfaces with a real stack
+trace:** this local dev environment's Next.js/Turbopack dev server has an
+unrelated pre-existing quirk where server-side `fetch` to Supabase fails
+(confirmed via a plain Node script using the identical `createClient()`
+call, which succeeded fine — the issue is specific to the dev server's
+fetch layer, not the code, and shouldn't affect Vercel's production Node
+runtime). Verified the actual insert logic directly instead: threw a real
+error, caught it, and inserted through the exact same code path
+`logServerError`/`logEdgeError` use — confirmed a real stack trace (actual
+call frames, not a placeholder) landed in `error_logs` with the right
+shape, then deleted the test row. Also confirmed the client-side path
+sends a well-formed payload to the right endpoint (verified via a live
+network request — it correctly 401s without a login, since
+`/api/debug/ingest` derives the user from the auth cookie, same
+pre-existing constraint as the rest of the debug-logger pipeline).
+
+**Deployed:** all 6 edge functions via `supabase functions deploy`; smoke-tested
+`tv-seasons` and `semantic-search` against production post-deploy — both
+return normal 200 responses, confirming the changes didn't break existing
+behavior. `npm test` (29/29), `npm run lint` (69 problems — identical to
+baseline before this session, confirmed via diff), `npm run build` all
+clean.
+
+⚠️ **Known limitation, not new:** `/api/debug/ingest` requires an
+authenticated session (derives `user_id` from the auth cookie), so
+anonymous-user errors — including anonymous-user error-boundary crashes —
+aren't persisted. This predates this session (already true for all
+existing debug-logger telemetry); extending to anonymous users would need
+rate-limiting/abuse-prevention design work that's out of scope here.
+
 ### ♿ Remediation Session 7 — accessibility remainder (v6.16, 2026-07-13)
 
 Closes the last gap from v6.8's accessibility pass: focus trap + Escape
@@ -403,13 +483,20 @@ modals found in the codebase (not just the 2 originally named), plus 10
 hover/focus-parity fixes including 2 elements that weren't keyboard-reachable
 at all.
 
-**Pre-existing, not yet touched:** Playwright e2e tests, Sentry error
-tracking, the `sharp-mayer` branch decision + rollback/down-migration story,
-`debug-logger` PII redaction, `tv-auth` rate-limiter alerting, the remaining
-~50 real lint errors + `any` types, and commerce Phases P1–P4 (P0 is done
-and live; P1 is unblocked, not started). The untracked third-party
-`gemini_feedbac_05242026.md` at repo root (cross-referenced by
-`movieknight-audit-report.md`) has been moved into
+~~Error tracking (Sentry or equivalent)~~ — **✅ resolved 2026-07-13**
+(Remediation Session 8, above): extended the existing debug-logger/error_logs
+pipeline (no new vendor) into error boundaries, all 4 API routes, and 6 of 10
+edge functions. Verified with a real deliberately-thrown error landing with
+a real stack trace.
+
+**Pre-existing, not yet touched:** Playwright e2e tests, the `sharp-mayer`
+branch decision + rollback/down-migration story, `debug-logger` PII
+redaction, `tv-auth` rate-limiter alerting (and its missing catch-all error
+handling, noted in Session 8), the remaining ~50 real lint errors + `any`
+types, and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not
+started). The untracked third-party `gemini_feedbac_05242026.md` at repo
+root (cross-referenced by `movieknight-audit-report.md`) has been moved
+into
 `ADAM_DOCS/gemini_feedback_05242026.md` (typo in the old filename fixed) and
 committed.
 

@@ -15,6 +15,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -190,6 +191,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (err) {
     console.error("Edge function error:", err);
+    await logEdgeError({ functionName: "tmdb-cache", error: err });
     return errorResponse("Internal server error", 500);
   }
 });

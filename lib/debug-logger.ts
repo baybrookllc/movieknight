@@ -63,10 +63,10 @@ export interface FlushPayload {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const INGEST_URL = '/api/debug/ingest';
+export const INGEST_URL = '/api/debug/ingest';
 const FLUSH_INTERVAL_MS = 10_000;
 const BUFFER_FLUSH_THRESHOLD = 20;
-const SESSION_STORAGE_KEY = 'dbg_session_id';
+export const SESSION_STORAGE_KEY = 'dbg_session_id';
 
 // ── Singleton class ────────────────────────────────────────────────────────
 

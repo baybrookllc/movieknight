@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServiceClient } from '@/lib/supabase-server';
+import { logServerError } from '@/lib/server-error-logger';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, latency_ms: Date.now() - start, timestamp: new Date().toISOString() });
   } catch (err) {
     console.error('[warmup]', err);
+    await logServerError({ errorType: 'api:warmup', error: err, severity: 'high' });
     return NextResponse.json({ ok: false, error: 'Warmup failed', latency_ms: Date.now() - start }, { status: 500 });
   }
 }

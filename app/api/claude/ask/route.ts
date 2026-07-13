@@ -20,6 +20,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { generateText } from 'ai';
 import { createGateway } from '@ai-sdk/gateway';
+import { logServerError } from '@/lib/server-error-logger';
 
 const RL_MAX = 10;
 const RL_WINDOW_SECS = 60;
@@ -92,6 +93,7 @@ Guidelines:
 - If unsure about specific facts, say so rather than guessing`;
 
 export async function POST(req: NextRequest) {
+  let userId: string | null = null;
   try {
     // ── 1. Authenticate via Supabase JWT cookie ────────────────────────────
     const cookieStore = await cookies();
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
     if (authErr || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    userId = user.id;
 
     // ── 2. Rate limit ─────────────────────────────────────────────────────
     if (!await checkRateLimit(user.id)) {
@@ -228,12 +231,14 @@ ${title.runtime ? `Runtime: ${title.runtime} min\n` : ''}Overview: ${title.overv
         );
       }
       console.error('[claude/ask]', err);
+      await logServerError({ errorType: 'api:claude/ask:generate', error: err, userId, context: { mode } });
       const isDev = process.env.NODE_ENV === 'development';
       const msg = isDev && err instanceof Error ? err.message : 'Failed to generate response';
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   } catch (err) {
     console.error('[claude/ask] Outer error:', err);
+    await logServerError({ errorType: 'api:claude/ask:outer', error: err, userId });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

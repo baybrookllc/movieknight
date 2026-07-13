@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { reportClientError } from '@/lib/client-error-report';
 
 export default function GlobalError({
   error,
@@ -9,7 +10,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => { console.error(error); }, [error]);
+  useEffect(() => {
+    console.error(error);
+    reportClientError(error, { boundary: 'root' });
+  }, [error]);
 
   return (
     <html lang="en">

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { reportClientError } from '@/lib/client-error-report';
 
 export default function AppError({
   error,
@@ -14,6 +15,7 @@ export default function AppError({
 
   useEffect(() => {
     console.error('[AppError]', error);
+    reportClientError(error, { boundary: 'app' });
   }, [error]);
 
   return (

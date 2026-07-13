@@ -13,6 +13,7 @@ import { makeCors } from "../_shared/cors-utils.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
 import { embedText } from "../_shared/openai-embeddings.ts";
 import { getClientIp } from "../_shared/request-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 const BATCH_CONCURRENCY = 5; // parallel OpenAI calls at once
 
@@ -177,6 +178,7 @@ Deno.serve(async (req: Request) => {
     return json({ embedded, skipped, errors }, 200, corsHeaders);
   } catch (err) {
     console.error("[generate-embedding] fatal error:", err);
+    await logEdgeError({ functionName: "generate-embedding", error: err });
     return json({ error: String(err) }, 500, corsHeaders);
   }
 });

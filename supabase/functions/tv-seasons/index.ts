@@ -33,6 +33,7 @@ interface TMDBSeasonDetail {
 }
 
 import { makeCors } from "../_shared/cors-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 // ── Rate limiting (per-isolate, in-memory) ──────────────────
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -120,6 +121,7 @@ Deno.serve(async (req: Request) => {
 
   } catch (err) {
     console.error("tv-seasons error:", err);
+    await logEdgeError({ functionName: "tv-seasons", error: err });
     return jsonResponse({ error: "Internal server error" }, 500, cors);
   }
 });

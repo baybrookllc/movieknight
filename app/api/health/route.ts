@@ -12,6 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logServerError } from '@/lib/server-error-logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,15 @@ export async function GET() {
   // ── Evaluate overall health ───────────────────────────────────────────────
   const allOk = Object.values(checks).every((c) => c.ok);
   const totalMs = Date.now() - start;
+
+  if (!allOk) {
+    await logServerError({
+      errorType: 'api:health:degraded',
+      error: new Error('Health check reported degraded status'),
+      context: checks,
+      severity: 'high',
+    });
+  }
 
   return NextResponse.json(
     {

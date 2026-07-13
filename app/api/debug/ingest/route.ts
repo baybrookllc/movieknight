@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServiceClient, getVerifiedUserId } from '@/lib/supabase-server';
+import { logServerError } from '@/lib/server-error-logger';
 import type {
   ConsoleEvent, ErrorEvent, NetworkEvent, PerfEvent,
   DebugEvent, LogLevel,
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, ingested });
   } catch (err) {
     console.error('[debug/ingest]', err);
+    await logServerError({ errorType: 'api:debug/ingest', error: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

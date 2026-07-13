@@ -11,6 +11,7 @@ import { makeCors } from "../_shared/cors-utils.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
 import { embedText } from "../_shared/openai-embeddings.ts";
 import { getClientIp } from "../_shared/request-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
@@ -91,6 +92,7 @@ Deno.serve(async (req: Request) => {
     return json({ results });
   } catch (err) {
     console.error("[semantic-search] error:", err);
+    await logEdgeError({ functionName: "semantic-search", error: err });
     return json({ error: String(err) }, 500);
   }
 });

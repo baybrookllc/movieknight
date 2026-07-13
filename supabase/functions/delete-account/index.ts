@@ -7,6 +7,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 function json(data: unknown, status = 200, corsHeaders: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
@@ -19,6 +20,7 @@ Deno.serve(async (req: Request) => {
   const cors = makeCors(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let uid: string | null = null;
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401, cors);
@@ -32,7 +34,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: userError } = await anonClient.auth.getUser();
     if (!user || userError) return json({ error: "Unauthorized" }, 401, cors);
 
-    const uid = user.id;
+    uid = user.id;
 
     // ── Use service role for data deletion ────────────────────
     const admin = createClient(
@@ -72,12 +74,19 @@ Deno.serve(async (req: Request) => {
     const { error: deleteError } = await admin.auth.admin.deleteUser(uid);
     if (deleteError) {
       console.error("Auth delete failed:", deleteError);
+      await logEdgeError({
+        functionName: "delete-account",
+        error: deleteError,
+        userId: uid,
+        context: { stage: "auth.admin.deleteUser", note: "user data already wiped — partial-deletion state" },
+      });
       return json({ error: "Failed to delete auth record" }, 500, cors);
     }
 
     return json({ success: true }, 200, cors);
   } catch (err) {
     console.error("delete-account error:", err);
+    await logEdgeError({ functionName: "delete-account", error: err, userId: uid });
     return json({ error: "Internal server error" }, 500, cors);
   }
 });
