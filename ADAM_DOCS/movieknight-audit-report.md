@@ -14,9 +14,9 @@
 
 Everything **safe to fix and within Claude's authority** has been fixed, deployed to production, and re-verified against live `get_advisors`. What's left, grouped by why it's still open:
 
-**Blocked on you (safety rules bar Claude from these — not a completeness gap, a permissions one):**
-- [ ] **Enable "Leaked password protection"** — Supabase dashboard → Authentication → Providers → Email (Pro-plan toggle; HaveIBeenPwned check on signup/password-change). `get_advisors` still reports this WARN.
-- [ ] **Add a `SUPABASE_DB_PASSWORD` GitHub Actions secret** — repo Settings → Secrets and variables → Actions. Without it, `deploy-migrations.yml` (now fixed and green) skips gracefully instead of auto-deploying; migrations must be pushed manually with `supabase db push` until this is added.
+**Blocked on you — ✅ both resolved 2026-07-13 (walked through step-by-step, same day as this audit):**
+- [x] **Enable "Leaked password protection"** — done via Supabase dashboard → Authentication → Providers → Email. `get_advisors(security)` re-run confirms the WARN is gone.
+- [x] **Add a `SUPABASE_DB_PASSWORD` GitHub Actions secret** — added via repo Settings → Secrets and variables → Actions (a first attempt saved it as `UPABASE_DB_PASSWORD` — missing leading "S" — caught via `gh secret list` and corrected). `deploy-migrations.yml` will now auto-deploy migrations on push instead of skipping gracefully.
 
 **Deliberately deferred (documented rationale — degrade-risk or needs its own reviewed pass, not a quick fix):**
 - [ ] Move the `vector` extension out of `public` schema — risks breaking the `embedding vector(1536)` column type, HNSW index, and operators for ~0 current benefit.

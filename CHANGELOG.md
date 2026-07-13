@@ -8,19 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### 📋 Outstanding (logged 2026-07-13, end of session)
+### 📋 Outstanding (logged 2026-07-13, end of session; updated same day)
 
 Everything safe-to-fix and within Claude's authority from this session's work
 is fixed, deployed to production, and re-verified. What's left:
 
-**Blocked on you (safety rules — not something Claude can do autonomously):**
-- [ ] Enable **"Leaked password protection"** — Supabase dashboard →
-  Authentication → Providers → Email (Pro-plan toggle). `get_advisors` still
-  reports this WARN.
-- [ ] Add a **`SUPABASE_DB_PASSWORD`** GitHub Actions secret (repo Settings →
-  Secrets and variables → Actions) — `deploy-migrations.yml` is fixed and green
-  but skips gracefully without it; migrations must be pushed manually
-  (`supabase db push`) until it's added.
+**Blocked on you — ✅ both resolved 2026-07-13 (user completed, walked through
+step-by-step):**
+- [x] Enable **"Leaked password protection"** — done via Supabase dashboard →
+  Authentication → Providers → Email. Re-ran `get_advisors(security)`: the WARN
+  no longer appears.
+- [x] Add a **`SUPABASE_DB_PASSWORD`** GitHub Actions secret — added (after
+  catching and fixing a typo, `UPABASE_DB_PASSWORD`, on the first attempt) via
+  repo Settings → Secrets and variables → Actions. Verified present via
+  `gh secret list`. `deploy-migrations.yml` will now auto-deploy migrations on
+  push instead of skipping gracefully.
 
 **Deliberately deferred** (degrade-risk or needs its own reviewed pass —
 rationale in `ADAM_DOCS/movieknight-audit-report.md` → "Outstanding as of
