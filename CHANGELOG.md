@@ -8,6 +8,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 📋 Outstanding (logged 2026-07-13, end of session)
+
+Everything safe-to-fix and within Claude's authority from this session's work
+is fixed, deployed to production, and re-verified. What's left:
+
+**Blocked on you (safety rules — not something Claude can do autonomously):**
+- [ ] Enable **"Leaked password protection"** — Supabase dashboard →
+  Authentication → Providers → Email (Pro-plan toggle). `get_advisors` still
+  reports this WARN.
+- [ ] Add a **`SUPABASE_DB_PASSWORD`** GitHub Actions secret (repo Settings →
+  Secrets and variables → Actions) — `deploy-migrations.yml` is fixed and green
+  but skips gracefully without it; migrations must be pushed manually
+  (`supabase db push`) until it's added.
+
+**Deliberately deferred** (degrade-risk or needs its own reviewed pass —
+rationale in `ADAM_DOCS/movieknight-audit-report.md` → "Outstanding as of
+2026-07-13"): moving the `vector` extension out of `public`; rewriting 53 RLS
+policies for the `auth_rls_initplan` perf finding; consolidating 21
+`multiple_permissive_policies` findings; dropping up to 41 `unused_index`
+findings; the full migration-history bootstrap-gap baseline (the deploy-
+blocking symptom — a `20260515` naming collision — is fixed; the underlying
+from-zero-replay gap remains).
+
+**Pre-existing, untouched this session:** Playwright e2e tests, accessibility
+focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch
+decision + rollback/down-migration story, product-naming unification,
+`debug-logger` PII redaction, dead-code deletion, `tv-auth` rate-limiter
+alerting, git tags, 39 `any` types, the `npm run lint` failure (~1,589 errors),
+and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not started).
+
 ### 🔒 Live Supabase advisor remediation (v6.9)
 
 After the `SUPABASE_ACCESS_TOKEN` was configured (closing the audit's known

@@ -10,9 +10,26 @@
 
 **This is "needs targeted fixes + one vertical built from zero," not "rebuild the core."** The core the team actually built — Next.js 16 App Router with real SSR, a coherent Supabase schema, semantic search, social graph, trigger-warning system — is genuine, working, and architecturally sound. That's the good news, and it's a real surprise relative to the brief. The bad news is threefold: (1) the **physical-media marketplace — the one differentiator the product positioning is built on — does not exist in any form**, not even a stub; (2) there is **zero automated test coverage** feeding a pipeline that auto-deploys to production; and (3) there's a scattering of **shipped-but-broken features** (a streaming-platform filter that silently returns nothing, a "Clear all" button that never appears, keyboard navigation that steals your arrow keys) that indicate features are being marked "done" without being exercised end-to-end. None of that requires a rewrite. It requires closing the test gap, fixing the broken-in-production bugs, and deciding whether "physical media marketplace" is real or should be dropped from the positioning. The gap between the five-vertical pitch and the four-vertical (tracking/discovery/streaming/social) reality is the single most important thing on this list.
 
+## Outstanding as of 2026-07-13 (end of session)
+
+Everything **safe to fix and within Claude's authority** has been fixed, deployed to production, and re-verified against live `get_advisors`. What's left, grouped by why it's still open:
+
+**Blocked on you (safety rules bar Claude from these — not a completeness gap, a permissions one):**
+- [ ] **Enable "Leaked password protection"** — Supabase dashboard → Authentication → Providers → Email (Pro-plan toggle; HaveIBeenPwned check on signup/password-change). `get_advisors` still reports this WARN.
+- [ ] **Add a `SUPABASE_DB_PASSWORD` GitHub Actions secret** — repo Settings → Secrets and variables → Actions. Without it, `deploy-migrations.yml` (now fixed and green) skips gracefully instead of auto-deploying; migrations must be pushed manually with `supabase db push` until this is added.
+
+**Deliberately deferred (documented rationale — degrade-risk or needs its own reviewed pass, not a quick fix):**
+- [ ] Move the `vector` extension out of `public` schema — risks breaking the `embedding vector(1536)` column type, HNSW index, and operators for ~0 current benefit.
+- [ ] Rewrite 53 RLS policies from `auth.uid()` to `(select auth.uid())` (the `auth_rls_initplan` perf finding) — behavior-preserving but wants an individually-verified pass, not a bulk pass. ~0 benefit today on near-empty tables.
+- [ ] Consolidate 21 `multiple_permissive_policies` findings — changes access-control logic, needs case-by-case review.
+- [ ] Drop up to 41 `unused_index` findings — `pg_stat` "unused" is unreliable on a young/low-traffic DB; several are deliberate feature indexes. Risk of removing something intentional.
+- [ ] **Migration-history bootstrap-gap baseline.** The deploy-blocking *symptom* (the `20260515` naming collision) is fixed, but the underlying gap remains: `20260416000000_add_title_columns.sql` assumes `titles` already exists (created out-of-band before migration tracking started), so replaying the full history from zero still fails. A real disaster-recovery risk. Needs a squashed baseline / "initial schema" migration as its own reviewed change.
+
+**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress" and unchanged this session): Playwright e2e tests, accessibility focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, product-naming unification, `debug-logger` PII redaction, dead-code deletion, `tv-auth` rate-limiter alerting, git tags, 39 `any` types, the `npm run lint` failure (~1,589 errors), and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+
 ## Implementation progress (updated 2026-07-13)
 
-Work done against this roadmap since the audit. Eight commits on `master` (none pushed yet). Legend: ✅ done · 🟡 partial · ⬜ not started.
+Work done against this roadmap since the audit. Ten commits on `master`, all pushed and deployed. Legend: ✅ done · 🟡 partial · ⬜ not started.
 
 ### Fix now — ✅ complete
 | Item | Status | Where |
@@ -39,8 +56,8 @@ Work done against this roadmap since the audit. Eight commits on `master` (none 
 
 ### Also outstanding
 - The **project-wide `npm run lint` failure (~1,589 errors)** — mostly `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout and `mcp-server/dist` build output being linted. The CI `lint` job is red independently of the above; `build` and the new `test` job pass. (relates to items 15/18)
-- The **commerce migration is committed and now locally validated, but still not applied to the live project.** `deploy-migrations.yml` auto-runs `supabase db push --linked` the moment `supabase/migrations/**` or `supabase/config.toml` reaches `origin/master` — so this happens automatically on the next `git push`, not on a separate manual step. No `SUPABASE_ACCESS_TOKEN` was available this session (closing that gap still requires one — see the note at the top of this doc).
-- **New finding (2026-07-13, discovered while validating the commerce migration):** the migration history is **not bootstrappable from a blank database.** `supabase/migrations/20260416000000_add_title_columns.sql` runs `ALTER TABLE titles ADD COLUMN …` and assumes `titles` already exists — it doesn't, unless `titles` was created out-of-band (e.g. directly in the Supabase dashboard) before migration tracking started on this project. Confirmed by running `supabase db start` against a fresh local Postgres with the full migration set: it fails at that file with `relation "titles" does not exist`. This is a **disaster-recovery gap** — if the live database were ever lost, replaying these migrations from zero would not rebuild it. Pre-existing, unrelated to the commerce work; **not yet fixed** (needs a squashed baseline / "initial schema" migration; deferred as it's risky migration-history surgery best done as its own reviewed change).
+- ~~The commerce migration is committed but not applied~~ — **✅ resolved 2026-07-13.** Applied to prod via `supabase db push` and verified live (8 tables, 13 tax rows). See "Live advisor remediation" below.
+- **Migration-history bootstrap gap (2026-07-13, discovered while validating the commerce migration) — partially resolved.** The migration history was **not bootstrappable from a blank database**: `supabase/migrations/20260416000000_add_title_columns.sql` assumes `titles` already exists (it was created out-of-band before migration tracking started), so replaying from zero failed at that file. This also turned out to be the exact cause of a second, deploy-blocking bug — a naming collision on `20260515` — which **is now fixed** (renamed + remote history reconciled; see "Live advisor remediation"). The broader gap (a from-zero replay still can't rebuild the `titles`-table-onward history) remains open — see "Outstanding as of 2026-07-13" above.
 
 ## Live advisor remediation (2026-07-13) — ✅ DEPLOYED & VERIFIED
 
