@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -262,9 +263,9 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-md)',
         }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={backdropUrl} alt={data.title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <Image src={backdropUrl} alt={data.title ?? ''} fill priority
+            sizes="(max-width: 900px) 100vw, 900px"
+            style={{ objectFit: 'cover' }} />
           <div style={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 60%)',
@@ -283,10 +284,10 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
         {/* Poster */}
         {data.poster_path && (
           <div style={{ flexShrink: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`${TMDB_IMG}${data.poster_path}`} alt={data.title}
+            <Image src={`${TMDB_IMG}${data.poster_path}`} alt={data.title ?? ''}
+              width={180} height={270}
               style={{
-                width: 180, height: 270, objectFit: 'cover',
+                objectFit: 'cover',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 boxShadow: 'var(--shadow-sm)',
@@ -437,8 +438,8 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
                   margin: '0 auto 8px',
                 }}>
                   {actor.profile_path ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`${TMDB_IMG}${actor.profile_path}`} alt={actor.name}
+                    <Image src={`${TMDB_IMG}${actor.profile_path}`} alt={actor.name}
+                      width={90} height={90}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <div style={{

@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [v6.7] - 2026-07-12
+
+### ⚡ Performance — middleware scoping + next/image (Next-milestone)
+
+Addresses the two High-severity performance items from the codebase audit
+(`ADAM_DOCS/movieknight-audit-report.md` §7). Validated via production build.
+
+**Changed**
+- **Scoped `proxy.ts` to page routes only.** The middleware previously ran a
+  full Supabase `auth.getUser()` round-trip plus CSP-nonce generation on every
+  request — including `/api/*` routes (which authenticate themselves and return
+  JSON needing no CSP) and static/metadata files. `/api/claude/ask` paid for
+  the auth check twice. The matcher now excludes `api/`, static output, and
+  `robots.txt`/`sitemap.xml`/`manifest.json`, with a matching in-function guard.
+  Verified in-browser: `/api/health` no longer receives a CSP header, page
+  routes still get CSP + `x-nonce`, and protected-route redirects still work.
+- **Migrated TMDB poster/backdrop images to `next/image`.** The detail page
+  (backdrop hero via `fill`, poster + cast headshots via fixed dimensions) and
+  the friends / notifications / profile feeds now use `next/image` — enabling
+  AVIF/WebP, responsive `srcset`, and automatic lazy-loading that the raw
+  `<img>` tags bypassed. Avatar images (arbitrary/non-allowlisted hosts) were
+  intentionally left as `<img>`.
+
+**Notes**
+- The `next/image`-converted pages are all SSR/auth-gated and cannot be rendered
+  on this machine (its network path uses a TLS-interception cert that breaks
+  server-side Supabase fetches). They were validated by production build +
+  typecheck; visual QA belongs on staging/preview.
+
+---
+
 ## [v6.6] - 2026-07-12
 
 ### 🔧 Audit "Fix Now" batch

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -287,8 +288,7 @@ export default function FriendsClient() {
                     borderLeft: r.seen ? undefined : '3px solid var(--accent)',
                   }} onClick={() => router.push(`/${r.title_id}`)}>
                     {r.poster_path && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`${TMDB_IMG}${r.poster_path}`} alt="" style={{ width: 48, height: 72, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)', borderRadius: 4 }} />
+                      <Image src={`${TMDB_IMG}${r.poster_path}`} alt="" width={48} height={72} style={{ objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)', borderRadius: 4 }} />
                     )}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{r.title || ''}</div>
@@ -375,8 +375,7 @@ function ActivityItem({ item, onClick }: { item: FriendActivityItem; onClick: ()
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={avatar} alt={name} style={{ width: 36, height: 36, border: '2px solid var(--border)', borderRadius: '50%', flexShrink: 0 }} />
       {item.poster_path && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={`${TMDB_IMG}${item.poster_path}`} alt="" style={{ width: 36, height: 54, objectFit: 'cover', border: '1px solid var(--border)', borderRadius: 4, flexShrink: 0 }} />
+        <Image src={`${TMDB_IMG}${item.poster_path}`} alt="" width={36} height={54} style={{ objectFit: 'cover', border: '1px solid var(--border)', borderRadius: 4, flexShrink: 0 }} />
       )}
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>

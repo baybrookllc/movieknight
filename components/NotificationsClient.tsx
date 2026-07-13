@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -152,9 +153,8 @@ export default function NotificationsClient() {
 
                   {/* Poster thumbnail */}
                   {n.poster_path && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`${TMDB_IMG}${n.poster_path}`} alt=""
-                      style={{ width: 36, height: 54, objectFit: 'cover', border: '1px solid var(--border)', borderRadius: 4, flexShrink: 0 }} />
+                    <Image src={`${TMDB_IMG}${n.poster_path}`} alt="" width={36} height={54}
+                      style={{ objectFit: 'cover', border: '1px solid var(--border)', borderRadius: 4, flexShrink: 0 }} />
                   )}
                 </div>
               );

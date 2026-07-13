@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -211,8 +212,8 @@ export default function ProfilePage() {
                 onClick={() => router.push(`/${t.id}`)}>
                 <div style={{ width: 80, height: 120, borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                   {t.poster_path ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`${TMDB_IMG}${t.poster_path}`} alt={t.title}
+                    <Image src={`${TMDB_IMG}${t.poster_path}`} alt={t.title}
+                      width={80} height={120}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', padding: 4, textAlign: 'center' }}>

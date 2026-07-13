@@ -32,12 +32,20 @@ function buildCsp(nonce: string): string {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Pass through Next.js internals and static assets
+  // Pass through Next.js internals, API routes, and static assets without an
+  // auth round-trip or CSP nonce. API routes do their own auth (getVerifiedUserId)
+  // and return JSON that needs no CSP; static/metadata files need neither. This
+  // mirrors the matcher below and is defence-in-depth for anything that slips
+  // through it.
   if (
     pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/icons') ||
-    /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname)
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml' ||
+    pathname === '/manifest.json' ||
+    /\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|txt|xml|webmanifest)$/.test(pathname)
   ) {
     return NextResponse.next({ request });
   }
@@ -107,5 +115,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Run on page routes only. Exclude API routes (they authenticate themselves),
+  // Next.js internals/static output, and public metadata files — none of which
+  // need the per-request Supabase auth check or CSP nonce.
+  matcher: [
+    '/((?!api/|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.json).*)',
+  ],
 };

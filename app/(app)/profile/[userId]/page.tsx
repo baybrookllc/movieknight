@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -134,11 +135,11 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 12 }}>
             {friendData.recent_titles.map(t => (
               <div key={t.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/${t.id}`)}>
-                <div style={{ borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '2/3', background: 'var(--bg-surface-2)' }}>
+                <div style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '2/3', background: 'var(--bg-surface-2)' }}>
                   {t.poster_path ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`${TMDB_IMG}${t.poster_path}`} alt={t.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <Image src={`${TMDB_IMG}${t.poster_path}`} alt={t.title} fill
+                      sizes="(max-width: 600px) 33vw, 100px"
+                      style={{ objectFit: 'cover' }} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', padding: 4, textAlign: 'center' }}>
                       {t.title}
