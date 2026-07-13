@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12 · **Branch audited:** `master` (@ `3477455`) · **Method:** 9-dimension structured audit, every high-severity "Confirmed" finding independently re-verified against source. 49 findings total (2 Blocker, 10 High, 16 Medium, 20 Low, 1 downgraded to Inferred on re-check).
 
-> **Known gap in this audit:** Live Supabase advisors (per-table RLS status via `get_advisors`/`list_tables`, query-performance advisor) were **not reachable** — the Supabase MCP had no authorized access token when this ran. Every security/DB finding below is from reading migration SQL and code directly, not from live database introspection. RLS "presence" is confirmed from migration files, not from the running database's actual enabled state. Re-run the security section with a `SUPABASE_ACCESS_TOKEN` to close this.
+> **Known gap in this audit:** Live Supabase advisors (per-table RLS status via `get_advisors`/`list_tables`, query-performance advisor) were **not reachable** — the Supabase MCP had no authorized access token when this ran. Every security/DB finding below is from reading migration SQL and code directly, not from live database introspection. RLS "presence" is confirmed from migration files, not from the running database's actual enabled state. Re-run the security section with a `SUPABASE_ACCESS_TOKEN` to close this. **Still open as of 2026-07-13** — the commerce migration's RLS was instead validated behaviorally against an isolated local Postgres (see "Implementation progress" item 7 below and `CHANGELOG.md`), which proves the *policies do what they claim* but doesn't substitute for `get_advisors` against the live project (missing-RLS-on-a-table-type findings, performance advisor, etc.).
 
 ---
 
@@ -10,9 +10,9 @@
 
 **This is "needs targeted fixes + one vertical built from zero," not "rebuild the core."** The core the team actually built — Next.js 16 App Router with real SSR, a coherent Supabase schema, semantic search, social graph, trigger-warning system — is genuine, working, and architecturally sound. That's the good news, and it's a real surprise relative to the brief. The bad news is threefold: (1) the **physical-media marketplace — the one differentiator the product positioning is built on — does not exist in any form**, not even a stub; (2) there is **zero automated test coverage** feeding a pipeline that auto-deploys to production; and (3) there's a scattering of **shipped-but-broken features** (a streaming-platform filter that silently returns nothing, a "Clear all" button that never appears, keyboard navigation that steals your arrow keys) that indicate features are being marked "done" without being exercised end-to-end. None of that requires a rewrite. It requires closing the test gap, fixing the broken-in-production bugs, and deciding whether "physical media marketplace" is real or should be dropped from the positioning. The gap between the five-vertical pitch and the four-vertical (tracking/discovery/streaming/social) reality is the single most important thing on this list.
 
-## Implementation progress (updated 2026-07-12)
+## Implementation progress (updated 2026-07-13)
 
-Work done against this roadmap since the audit. Seven commits on `master` (none pushed yet). Legend: ✅ done · 🟡 partial · ⬜ not started.
+Work done against this roadmap since the audit. Eight commits on `master` (none pushed yet). Legend: ✅ done · 🟡 partial · ⬜ not started.
 
 ### Fix now — ✅ complete
 | Item | Status | Where |
@@ -27,7 +27,7 @@ Work done against this roadmap since the audit. Seven commits on `master` (none 
 ### Next milestone — partial
 | Item | Status | Where |
 |---|---|---|
-| 7. Commerce vertical | 🟡 Plan written; **Phase P0 done** (schema + RLS + money math + tests). P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7` |
+| 7. Commerce vertical | 🟡 Plan written; **Phase P0 done and validated** (schema + RLS + money math + tests; RLS behaviorally confirmed 2026-07-13 against an isolated local Postgres — 12 owner/seller/anon/service-role scenarios, all pass). **Not yet applied to the live/linked Supabase project** — still blocking P1. P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7`, `a34815d` |
 | 8. Accessibility pass | 🟡 Keyboard reachability, focus ring, ARIA, AA contrast, skip link done; **full focus-trap + hover/focus parity remain** | v6.8 `c733de5` |
 | 9. `next/image` migration | ✅ Detail + feed posters migrated (visual QA on staging pending) | v6.7 `3d48d03` |
 | 10. `proxy.ts` matcher scoping | ✅ Done (verified) | v6.7 `3d48d03` |
@@ -39,7 +39,8 @@ Work done against this roadmap since the audit. Seven commits on `master` (none 
 
 ### Also outstanding
 - The **project-wide `npm run lint` failure (~1,589 errors)** — mostly `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout and `mcp-server/dist` build output being linted. The CI `lint` job is red independently of the above; `build` and the new `test` job pass. (relates to items 15/18)
-- The **commerce migration is committed but not applied** — it auto-applies to prod on push to `master`; validate with a `SUPABASE_ACCESS_TOKEN` (also closes this audit's known gap) before pushing.
+- The **commerce migration is committed and now locally validated, but still not applied to the live project.** `deploy-migrations.yml` auto-runs `supabase db push --linked` the moment `supabase/migrations/**` or `supabase/config.toml` reaches `origin/master` — so this happens automatically on the next `git push`, not on a separate manual step. No `SUPABASE_ACCESS_TOKEN` was available this session (closing that gap still requires one — see the note at the top of this doc).
+- **New finding (2026-07-13, discovered while validating the commerce migration):** the migration history is **not bootstrappable from a blank database.** `supabase/migrations/20260416000000_add_title_columns.sql` runs `ALTER TABLE titles ADD COLUMN …` and assumes `titles` already exists — it doesn't, unless `titles` was created out-of-band (e.g. directly in the Supabase dashboard) before migration tracking started on this project. Confirmed by running `supabase db start` against a fresh local Postgres with the full migration set: it fails at that file with `relation "titles" does not exist`. This is a **disaster-recovery gap** — if the live database were ever lost, replaying these migrations from zero would not rebuild it. Pre-existing, unrelated to the commerce work; not yet fixed. Recommend either a squashed baseline migration or an explicit "initial schema" migration capturing what's currently only in the live DB.
 
 ## Where reality diverges from the stated "assumed context"
 

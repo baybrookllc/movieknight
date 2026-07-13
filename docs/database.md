@@ -229,7 +229,7 @@ First-party retail MVP with a marketplace-ready shape (`listings.seller_id` null
 All money is stored in **integer cents**. Design rationale and phasing:
 `ADAM_DOCS/commerce-vertical-plan.md`.
 
-> **Status:** migration committed (`84b6be7`) but **not yet applied** to the live DB.
+> **Status:** migration committed (`84b6be7`) and validated locally against an isolated Postgres instance (`a34815d`, 2026-07-13 — schema, indexes, seeds, RLS across 12 scenarios, all pass) but **not yet applied** to the live DB. Applies automatically via `deploy-migrations.yml` on the next push to `origin/master`.
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -242,6 +242,8 @@ All money is stored in **integer cents**. Design rationale and phasing:
 | `tax_rates` | Combined CA sales-tax reference (13 provinces) | `province` (PK), `rate` (fraction) — **verify against CRA before go-live** |
 
 **RLS:** `product_editions` / `listings` (active) / `tax_rates` are public-read; `carts` / `cart_items` / `shipping_addresses` / `orders` / `order_items` are owner-only. **`orders` has no client write grant** — created by the service role after payment. Money math lives in `lib/commerce.ts` (unit-tested).
+
+**Note for Phase P4 (marketplace):** `product_editions` has no INSERT policy/grant for `authenticated` — only `listings` has the seller hook. A P2P seller can list an *existing* catalog edition but can't add a new one yet; P4 needs an admin-curation flow or an expanded grant on `product_editions`.
 
 ---
 

@@ -68,9 +68,14 @@ applied verbatim on top. Confirmed:
     stack on this machine's default 54321-54329 range.
 
 No changes were made to the linked/production database — this was local-only
-validation. **Next:** push `84b6be7`'s migration to the linked project (`supabase
-db push` or via a Supabase access token) before starting P1 UI work, since P1
-(cart) needs live tables to build against.
+validation. **Next:** apply the migration to the linked project before starting
+P1 UI work, since P1 (cart) needs live tables to build against. This happens
+automatically the next time `supabase/migrations/**` reaches `origin/master`
+(`.github/workflows/deploy-migrations.yml` runs `supabase db push --linked` on
+that path) — awaiting go-ahead to push, since that's a live write to
+production. A manual `supabase db push` (this machine's CLI is already
+authenticated to the linked project) or a `SUPABASE_ACCESS_TOKEN` for the MCP
+tools are the alternatives if pushing to `origin/master` isn't wanted yet.
 
 **Next (Phase P1):** shop catalog page, buy panel on the title detail page, and
 the Zustand + server-persisted cart. Phase P2 wires Stripe (needs your Stripe
@@ -83,6 +88,14 @@ account + keys; see plan §10).
   marked ✅/🟡/⬜), Phase P0 marked done in the commerce plan, the new commerce
   tables documented in `docs/database.md`, and a status pointer added to the
   README.
+- **2026-07-13 re-sync**, after the local migration validation above: bumped
+  `ADAM_DOCS/movieknight-audit-report.md`'s "Implementation progress" to 8
+  commits and P0-validated; recorded the migration-history bootstrap gap
+  (`20260416000000` assumes `titles` exists) as a new finding under "Also
+  outstanding" since it's a real disaster-recovery risk, not commerce-specific;
+  noted the still-open `SUPABASE_ACCESS_TOKEN` gap now has a documented
+  workaround; updated `docs/database.md`'s commerce status line and added the
+  P4 `product_editions`-grant note there too; updated the README status line.
 
 **Removed**
 - Deleted the stale `claude/elegant-agnesi-6a348c` branch (a strict ancestor of

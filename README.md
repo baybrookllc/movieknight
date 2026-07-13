@@ -5,7 +5,7 @@
 **Live:** https://movieknight.ca  
 **Current Version:** v6.8 (Jul 12, 2026 · 22:10 EDT)  
 **Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit tests (Vitest) · WCAG-AA keyboard/contrast pass  
-**In progress:** Physical-media commerce vertical — Phase P0 (schema) done, UI pending.
+**In progress:** Physical-media commerce vertical — Phase P0 (schema) done and validated locally, not yet applied to production; UI (P1) pending.
 
 > **Where things stand:** a full codebase audit and the completed/remaining
 > roadmap live in [`ADAM_DOCS/movieknight-audit-report.md`](ADAM_DOCS/movieknight-audit-report.md)
