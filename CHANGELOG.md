@@ -8,6 +8,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧩 Remediation Session 4 — pgvector relocation (v6.14, 2026-07-13)
+
+Closes the `extension_in_public` security-advisor finding: the `vector`
+extension (0.8.0) was installed directly in `public` rather than a dedicated
+extensions schema. Ground truth pulled first — exactly one column
+(`title_embeddings.embedding`), one HNSW index, and two functions
+(`match_titles`, both overloads) actually touch the type/operators; nothing
+else in the schema references pgvector.
+
+**Added**
+- **`supabase/migrations/20260713000006_relocate_pgvector.sql`**:
+  `CREATE SCHEMA IF NOT EXISTS extensions`, grant `USAGE` to
+  `postgres`/`anon`/`authenticated`/`service_role`, then
+  `ALTER EXTENSION vector SET SCHEMA extensions`. `match_titles`'s two
+  overloads have `search_path=public` pinned from the earlier
+  `function_search_path_mutable` fix and call the `<=>` operator
+  unqualified in their bodies, so both get `extensions` added to that
+  pinned search_path. Table column types and index operator classes
+  resolve by OID in the catalog, not by name — `title_embeddings.embedding`
+  and its HNSW index needed no changes.
+
+**Fixed during first deploy attempt (caught by the transaction, not by
+users):** the first version of this migration referenced the bare word
+`vector` in the `ALTER FUNCTION ... SET search_path` clauses — which
+depends on the *session's* search_path to resolve, not the pinned one being
+set. Production's default session search_path turned out to be `"$user",
+public` (no `extensions`), so once the extension moved off `public`
+mid-transaction, that bare reference failed to resolve and the whole
+migration rolled back cleanly (confirmed via `pg_extension` + `migration
+list` — no partial state, nothing user-facing). Root cause: my local test
+image's default search_path already includes `extensions`, masking the
+issue there. Fixed by schema-qualifying the type as `extensions.vector` in
+the `ALTER FUNCTION` clauses, which doesn't depend on any session's
+search_path at all. Re-validated against a container with production's
+exact narrower search_path forced, then redeployed clean.
+
+**Validated (isolated local Postgres, same
+`public.ecr.aws/supabase/postgres:15.8.1.085` image):** full 44-migration
+replay clean. Beyond structure, inserted real 1536-dim embeddings and ran
+both `match_titles` overloads as `authenticated` and `anon` roles —
+correct similarity scores, and `EXPLAIN` confirmed the HNSW index
+(`title_embeddings_embedding_idx`) is still used for the `<=>` ordering
+post-relocation.
+
+**Deployed:** `supabase db push`. Post-deploy: `pg_extension` confirms
+`vector` now lives in `extensions`; `get_advisors(security)` no longer
+lists `extension_in_public` at all (was present before this session).
+
+This session's `get_advisors(security)` re-run also re-confirmed two
+findings that are **already documented and accepted-by-design** in
+`ADAM_DOCS/movieknight-audit-report.md`'s "Live advisor remediation" table
+(not new, not pgvector-related): 45 functions each trip
+`anon`/`authenticated_security_definer_function_executable` (SECURITY
+DEFINER RPCs — search_path pinning at v6.9 already closed the exploitable
+surface, EXECUTE grants are intentional since these functions *are* the
+app's RPC API) and 1 `rls_enabled_no_policy` INFO on `device_auth_codes`
+(intentional service-role-only deny-all, already hardened against DR
+replay). No action needed.
+
 ### 🔐 Remediation Session 3 — RLS policy hygiene (v6.13, 2026-07-13)
 
 Fixes the two remaining performance-advisor findings from the deferred-DB-items
@@ -197,13 +256,11 @@ step-by-step):**
   `gh secret list`. `deploy-migrations.yml` will now auto-deploy migrations on
   push instead of skipping gracefully.
 
-**Deliberately deferred DB items still open:** moving the `vector` extension
-out of `public` (0.8.0, relocatable, single-table blast radius — lower risk
-than originally assumed, Session 4); dropping `unused_index` findings (59
-live, mostly on tables too young for `pg_stat` to mean anything — recommend a
-60-90 day recheck instead of acting now, Session 5); the newly-surfaced
+**Deliberately deferred DB items still open:** dropping `unused_index`
+findings (59 live, mostly on tables too young for `pg_stat` to mean anything
+— recommend a 60-90 day recheck instead of acting now, Session 5); the
 `duplicate_index` WARN on 3 tables (`follows`, `list_members`, `messages` —
-see Session 3 above), queued alongside Session 5's index review.
+surfaced in Session 3), queued alongside Session 5's index review.
 
 ~~The migration-history bootstrap-gap baseline~~ — **✅ resolved 2026-07-13**
 (Remediation Session 2): a from-zero replay of the full migration history now
@@ -212,9 +269,15 @@ function parity). Found and fixed real prod drift along the way — see
 Session 2 for detail.
 
 ~~`auth_rls_initplan` + `multiple_permissive_policies`~~ — **✅ resolved
-2026-07-13** (Remediation Session 3, above): 61 policies rewritten, 4
-redundant policies dropped, 1 narrower replacement added. Both advisor
-findings confirmed at 0 post-deploy.
+2026-07-13** (Remediation Session 3): 61 policies rewritten, 4 redundant
+policies dropped, 1 narrower replacement added. Both advisor findings
+confirmed at 0 post-deploy.
+
+~~Move the `vector` extension out of `public`~~ — **✅ resolved 2026-07-13**
+(Remediation Session 4, above): relocated to a dedicated `extensions`
+schema, `match_titles` search_path updated, validated with real embedding
+inserts + HNSW similarity queries before and after deploy.
+`extension_in_public` confirmed cleared post-deploy.
 
 **Pre-existing, not yet touched:** Playwright e2e tests, accessibility
 focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch
