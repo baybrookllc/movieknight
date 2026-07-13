@@ -6,26 +6,14 @@ import { useAuth } from '@/components/AuthProvider';
 
 import TitleCard from '@/components/TitleCard';
 import type { Title } from '@/lib/types';
-
-const PAGE_SIZE = 24;
-
-interface FilterState {
-  format: string;
-  minRating: number;
-  yearFrom: string;
-  yearTo: string;
-  country: string;
-  language: string;
-  cvrs: string;
-  runtime: string;
-  genres: number[];
-  platforms: number[];
-}
-
-const DEFAULT_FILTERS: FilterState = {
-  format: '', minRating: 0, yearFrom: '', yearTo: '',
-  country: '', language: '', cvrs: '', runtime: '', genres: [], platforms: [],
-};
+import {
+  type FilterState,
+  DEFAULT_FILTERS,
+  BROWSE_PAGE_SIZE as PAGE_SIZE,
+  computeHasActiveFilters,
+  isTextInputTarget,
+  buildBrowseParams,
+} from '@/lib/browse-filters';
 
 interface BrowseClientProps {
   initialQuery: string;
@@ -108,6 +96,10 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (activeFilter || !results.length) return;
+      // Don't hijack keys while the user is typing in the search box (or any
+      // other text field) — otherwise ArrowLeft/ArrowRight get stolen from the
+      // caret and preventDefault()'d instead of moving it.
+      if (isTextInputTarget(document.activeElement)) return;
       // Calculate actual columns from grid layout
       const resultsGrid = document.querySelector('[style*="gridTemplateColumns"]') as HTMLElement;
       const cols = resultsGrid
@@ -130,8 +122,11 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
         newIdx = Math.max(newIdx - 1, 0);
       } else if (e.key === 'Enter' && focusedIndex !== null) {
         e.preventDefault();
-        const el = document.querySelector(`[data-title-idx="${focusedIndex}"]`) as HTMLElement;
-        el?.click();
+        // Activate the inner <a> that TitleCard's <Link> renders — clicking the
+        // outer wrapper <div> does nothing, since DOM click events bubble up
+        // from the anchor to the div, never down into it.
+        const link = document.querySelector(`[data-title-idx="${focusedIndex}"] a`) as HTMLElement | null;
+        link?.click();
       } else {
         return;
       }
@@ -259,7 +254,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
 
         data = merged;
       } else {
-        const rpcParams = buildParams(filters, append ? offsetRef.current : 0, filterHiddenTriggers, user?.id);
+        const rpcParams = buildBrowseParams(filters, append ? offsetRef.current : 0, filterHiddenTriggers, user?.id);
         const { data: rows, error } = await supabase.rpc('browse_titles', rpcParams);
         if (error) throw error;
         data = (rows ?? []) as Title[];
@@ -345,8 +340,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
 
   const toggle = (key: string) => setActiveFilter(p => p === key ? null : key);
 
-  const hasActiveFilters = filters.format || filters.minRating > 0 || filters.yearFrom ||
-    filters.genres.length > 0 || filters.runtime || filters.language || filters.country || filters.cvrs || filters.platforms.length > 0;
+  const hasActiveFilters = computeHasActiveFilters(filters);
 
   const getActiveFilterChips = () => {
     const chips: Array<{ label: string; clearFn: () => void }> = [];
@@ -515,29 +509,14 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
           ))}
         </FilterDropdown>
 
-        <FilterDropdown label={`Platforms${filters.platforms.length > 0 ? ` (${filters.platforms.length})` : ''}`} isOpen={activeFilter === 'platforms'} onToggle={() => toggle('platforms')} wide>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, maxHeight: 280, overflowY: 'auto' }}>
-            {platformList.map(p => {
-              const active = filters.platforms.includes(p.id);
-              return (
-                <button key={p.id} onClick={() => setFilter('platforms', active ? filters.platforms.filter(x => x !== p.id) : [...filters.platforms, p.id])}
-                  style={{
-                    textAlign: 'left', padding: '7px 10px', fontSize: 12, fontWeight: active ? 600 : 400,
-                    background: active ? 'rgba(255,46,99,0.15)' : 'none',
-                    color: active ? 'var(--accent)' : 'var(--text)',
-                    border: 'none', borderRadius: 4, cursor: 'pointer',
-                  }}>
-                  {p.name}
-                </button>
-              );
-            })}
-          </div>
-          {filters.platforms.length > 0 && (
-            <button onClick={() => setFilter('platforms', [])} style={{ marginTop: 8, padding: '4px 8px', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
-              Clear platforms
-            </button>
-          )}
-        </FilterDropdown>
+        {/*
+          Platform filter hidden until the data pipeline exists. The
+          `browse_titles` RPC filters against `title_streaming_platforms`, which
+          has no writer anywhere in the codebase — so selecting a platform
+          always returned zero results. Re-enable once that table is populated
+          from TMDB watch-providers data.
+          See ADAM_DOCS/movieknight-audit-report.md §2 (Next-milestone item).
+        */}
 
         {/* Trigger warnings toggle */}
         <label style={{
@@ -555,7 +534,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
           <span>Hide my warnings</span>
         </label>
 
-        {hasActiveFilters || filterHiddenTriggers && (
+        {(hasActiveFilters || filterHiddenTriggers) && (
           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--accent)', borderColor: 'rgba(255,46,99,0.4)' }}
             onClick={() => setFilters({ ...DEFAULT_FILTERS, format: initialFormat })}>
             Clear all ×
@@ -638,31 +617,4 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
       )}
     </div>
   );
-}
-
-function buildParams(f: FilterState, currentOffset: number, userFilterTriggers: boolean, userId?: string) {
-  const params: Record<string, unknown> = {
-    p_limit: PAGE_SIZE + 1, p_offset: currentOffset,
-    p_media_type: f.format || null,
-    p_genre_ids: f.genres.length > 0 ? f.genres : null,
-    p_min_rating: f.minRating || 0,
-    p_year_from: f.yearFrom ? parseInt(f.yearFrom, 10) : null,
-    p_year_to: f.yearTo ? parseInt(f.yearTo, 10) : null,
-    p_country: f.country || null,
-    p_cvrs: f.cvrs || null,
-    p_language: f.language || null,
-    p_platform_ids: f.platforms.length > 0 ? f.platforms : null,
-    p_runtime_min: null, p_runtime_max: null,
-    // Trigger warning filtering
-    p_user_id: userFilterTriggers && userId ? userId : null,
-    p_filter_hidden_triggers: userFilterTriggers && !!userId,
-  };
-  switch (f.runtime) {
-    case 'short':        params.p_runtime_max = 89; break;
-    case 'medium':       params.p_runtime_min = 90; params.p_runtime_max = 120; break;
-    case 'long':         params.p_runtime_min = 121; break;
-    case 'series-short': params.p_runtime_max = 29; break;
-    case 'series-long':  params.p_runtime_min = 45; break;
-  }
-  return params;
 }

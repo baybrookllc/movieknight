@@ -3,8 +3,8 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.5 (May 22, 2026 · 20:35 UTC)  
-**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments
+**Current Version:** v6.6 (Jul 12, 2026 · 21:23 EDT)  
+**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit tests (Vitest)
 
 ---
 
@@ -319,7 +319,7 @@ Monitored via:
 
 ## 🤝 Contributing
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `master`
 2. Make changes and test locally (`npm run dev`)
 3. Run build (`npm run build`) and type check
 4. Commit with clear messages

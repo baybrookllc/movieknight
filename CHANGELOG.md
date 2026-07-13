@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [v6.6] - 2026-07-12
+
+### 🔧 Audit "Fix Now" batch
+
+Addresses the Blocker/High "Fix now" items from the full codebase audit
+(`ADAM_DOCS/movieknight-audit-report.md`). Verified in-browser end-to-end.
+
+**Fixed**
+- **Browse "Clear all" button never appeared when a filter was active** — an
+  operator-precedence bug (`&&` binding tighter than `||`) in the button's JSX
+  condition. The `hasActiveFilters` check also leaked a truthy *string* instead
+  of a boolean. Extracted the logic to `lib/browse-filters.ts` with a boolean
+  return and parenthesized the JSX. (`components/BrowseClient.tsx`)
+- **Browse arrow-key grid navigation hijacked the search box** — a window-level
+  `keydown` handler stole ArrowLeft/ArrowRight from text inputs, and Enter
+  called `.click()` on a wrapper `<div>` (which never navigates). Now bails out
+  when a text field is focused (`isTextInputTarget`) and activates the inner
+  `<a>`. (`components/BrowseClient.tsx`, `lib/browse-filters.ts`)
+
+**Changed**
+- **Hid the streaming-platform filter** until its data pipeline exists. The
+  `browse_titles` RPC filters against `title_streaming_platforms`, which has no
+  writer anywhere — so selecting a platform always returned zero results.
+  Wiring it from TMDB watch-providers data is tracked as a Next-milestone item.
+  (`components/BrowseClient.tsx`)
+- **Retargeted `lighthouse.yml`** from the nonexistent `main` /
+  `feat/nextjs-migration` branches to `master`, so Lighthouse CI actually runs.
+  Corrected the README's "create a feature branch from `main`" instruction.
+
+**Added**
+- **`robots.txt` and `sitemap.xml`** via `app/robots.ts` / `app/sitemap.ts` —
+  the sitemap enumerates the most popular title-detail URLs so crawlers can
+  discover them at scale (previously neither file existed). (`lib/site.ts`)
+- **Unit test harness (Vitest + jsdom)** — first increment toward the zero-test
+  Blocker. Covers the extracted browse-filter logic and site helpers
+  (`lib/browse-filters.test.ts`, `lib/site.test.ts`), with a `test` job added to
+  CI (`ci.yml`) that gates the production build. Playwright e2e for the
+  auth/browse/detail flows is the tracked follow-up.
+
+**Next session**
+- Wire `title_streaming_platforms` from `watch_providers_json` (or migrate the
+  filter to read the JSON directly), then re-enable the platform filter.
+- Address the pre-existing project-wide ESLint failure (1,589 errors — mostly
+  `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout
+  and `mcp-server/dist` build output being linted); the CI `lint` job is red
+  independently of this batch.
+
+---
+
 ## [v6.5] - 2026-05-22
 
 ### ⚠️ Trigger Warning Filtering Integration
