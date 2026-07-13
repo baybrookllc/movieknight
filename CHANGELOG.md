@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [Unreleased]
+
+### 📋 Docs & housekeeping
+
+**Added**
+- `ADAM_DOCS/commerce-vertical-plan.md` — implementation plan for the
+  physical-media commerce vertical (fulfillment-model fork, schema, Stripe
+  boundary, Canadian tax/shipping, phasing, and the decisions still needed).
+  Awaiting go-ahead before Phase P0 (schema + RLS) is built.
+
+**Removed**
+- Deleted the stale `claude/elegant-agnesi-6a348c` branch (a strict ancestor of
+  `master`, fully contained, no unique commits). `claude/sharp-mayer-5e02fe`
+  left in place pending separate review.
+
+---
+
 ## [v6.8] - 2026-07-12
 
 ### ♿ Accessibility pass (Next-milestone)
