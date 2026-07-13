@@ -36,10 +36,19 @@ export default function TitleCard({
   const flaggedTriggers = triggerTopics?.filter(t => userTriggerPrefs?.[t.topicKey] === 'flag') || [];
 
   return (
-    <Link href={`/${id}`} style={{ display: 'block', width, flexShrink: 0 }}>
+    <Link href={`/${id}`} style={{ display: 'block', width, flexShrink: 0 }}
+      onFocus={e => {
+        const el = e.currentTarget.querySelector<HTMLElement>('[data-title-card-poster]');
+        if (el) { el.style.transform = 'translateY(-4px)'; el.style.boxShadow = 'var(--shadow-md)'; }
+      }}
+      onBlur={e => {
+        const el = e.currentTarget.querySelector<HTMLElement>('[data-title-card-poster]');
+        if (el) { el.style.transform = ''; el.style.boxShadow = 'var(--shadow-sm)'; }
+      }}>
       <div style={{ width, cursor: 'pointer' }}>
         {/* Poster */}
         <div
+          data-title-card-poster
           style={{
             width, height,
             background: 'var(--bg-surface)',

@@ -164,7 +164,9 @@ export default function MessagesClient() {
                   transition: 'background 0.15s',
                 }}
                 onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                onFocus={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onBlur={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'none'; }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={avatar} alt="" style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--border)', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>

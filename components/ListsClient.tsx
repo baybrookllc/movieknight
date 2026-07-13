@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import TitleCard from '@/components/TitleCard';
 import { batchRpcs } from '@/lib/batch-rpcs';
+import { activateOnKey, useFocusTrap } from '@/lib/a11y';
 import type { CustomList, WatchStatus, Title } from '@/lib/types';
 
 // ── Local row types matching Supabase join shapes ─────────────────────────────
@@ -45,6 +46,8 @@ export default function ListsClient() {
 
   // Create list modal
   const [showCreate, setShowCreate] = useState(false);
+  const createListRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(createListRef, showCreate, () => setShowCreate(false));
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newPublic, setNewPublic] = useState(false);
@@ -228,6 +231,14 @@ export default function ListsClient() {
                   onMouseLeave={e => {
                     (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)';
                     (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                  }}
+                  onFocus={e => {
+                    (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)';
+                  }}
+                  onBlur={e => {
+                    (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
                   }}>
                   <span style={{ fontSize: 28 }}>{a.icon}</span>
                   <div>
@@ -284,7 +295,8 @@ export default function ListsClient() {
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
           onClick={() => setShowCreate(false)}>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 32, width: 420, maxWidth: '90vw' }}
+          <div ref={createListRef} role="dialog" aria-modal="true" aria-label="New list" tabIndex={-1}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 32, width: 420, maxWidth: '90vw' }}
             onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>New List</h2>
             <div style={{ marginBottom: 16 }}>
@@ -327,19 +339,29 @@ function ListCard({ list, isOwner, role, onDelete }: {
   onDelete?: () => void;
 }) {
   const router = useRouter();
+  const goToList = () => router.push(`/list/${list.id}`);
   return (
-    <div style={{
+    <div role="button" tabIndex={0} style={{
       background: 'var(--bg-surface)', border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
       boxShadow: 'var(--shadow-sm)', padding: 20, cursor: 'pointer',
       transition: 'box-shadow 0.15s, border-color 0.15s',
     }}
-    onClick={() => router.push(`/list/${list.id}`)}
+    onClick={goToList}
+    onKeyDown={activateOnKey(goToList)}
     onMouseEnter={e => {
       (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
       (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)';
     }}
     onMouseLeave={e => {
+      (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)';
+      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+    }}
+    onFocus={e => {
+      (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
+      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)';
+    }}
+    onBlur={e => {
       (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)';
       (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
     }}>

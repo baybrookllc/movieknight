@@ -595,6 +595,8 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
               onClick={() => setFocusedIndex(idx)}
               onMouseEnter={() => setFocusedIndex(idx)}
               onMouseLeave={() => setFocusedIndex(null)}
+              onFocus={() => setFocusedIndex(idx)}
+              onBlur={() => setFocusedIndex(null)}
               style={{
                 outline: focusedIndex === idx ? '2px solid var(--accent)' : 'none',
                 borderRadius: 'var(--radius)',

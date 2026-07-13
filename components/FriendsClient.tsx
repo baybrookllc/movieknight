@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import { useBadges } from '@/components/BadgeProvider';
 import { getAvatarUrl, timeAgo, TMDB_IMG } from '@/lib/utils';
+import { activateOnKey, useFocusTrap } from '@/lib/a11y';
 
 type Tab = 'friends' | 'activity' | 'requests' | 'inbox';
 
@@ -82,6 +83,8 @@ export default function FriendsClient() {
   const [addUsername, setAddUsername] = useState('');
   const [addResult, setAddResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [addLoading, setAddLoading] = useState(false);
+  const addFriendRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(addFriendRef, showAdd, () => { setShowAdd(false); setAddUsername(''); setAddResult(null); });
 
   const loadTab = useCallback(async (t: Tab) => {
     setLoading(true);
@@ -309,7 +312,8 @@ export default function FriendsClient() {
       {showAdd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
           onClick={() => { setShowAdd(false); setAddUsername(''); setAddResult(null); }}>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 28, width: 360, maxWidth: '90vw' }}
+          <div ref={addFriendRef} role="dialog" aria-modal="true" aria-label="Add friend" tabIndex={-1}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 28, width: 360, maxWidth: '90vw' }}
             onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Add Friend</h2>
             <input value={addUsername} onChange={e => setAddUsername(e.target.value)}
@@ -342,10 +346,14 @@ function FriendItem({ friend, onRemove, onClick }: { friend: Friend; onRemove: (
   const avatar = getAvatarUrl(friend.avatar_id, friend.user_id);
   const name = friend.display_name || friend.username || 'Unknown';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', transition: 'background 0.15s' }}
+    <div role="button" tabIndex={0}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', transition: 'background 0.15s' }}
       onClick={onClick}
+      onKeyDown={activateOnKey(onClick)}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-surface)')}>
+      onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+      onFocus={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+      onBlur={e => (e.currentTarget.style.background = 'var(--bg-surface)')}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={avatar} alt={name} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid var(--border)', flexShrink: 0 }} />
       <div style={{ flex: 1 }}>

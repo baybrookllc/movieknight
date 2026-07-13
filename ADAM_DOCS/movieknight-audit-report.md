@@ -26,7 +26,9 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 - [x] **Move the `vector` extension out of `public` — ✅ resolved 2026-07-13.** Relocated to a dedicated `extensions` schema; `match_titles`'s two overloads updated to resolve it. Validated locally with real embedding inserts + HNSW similarity queries (both roles, both overloads) before and after deploy. `extension_in_public` confirmed cleared post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 4".
 - [x] **3 `duplicate_index` pairs (`follows`, `list_members`, `messages`) — ✅ resolved 2026-07-13.** Root-caused to Session 2's index-fix migration re-creating indexes that already existed under different names; dropped the duplicates, kept the originals. Validated locally, advisor confirmed cleared post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 5".
 
-**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, accessibility focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting, remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting, remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+
+~~Accessibility focus-trap/hover-parity~~ — **✅ resolved 2026-07-13 (Remediation Session 7).** A shared `useFocusTrap` hook (`lib/a11y.ts`) now handles Escape-to-close, Tab/Shift+Tab wrapping, initial focus, and focus restore across all 7 modals found in the codebase (2 separate trailer-modal implementations, search overlay, and 4 more with the identical gap not originally named in the plan). Plus 10 hover/focus-parity fixes, including 2 elements (`FriendItem`, `ListCard`) that weren't keyboard-reachable at all. Verified live: opened the search overlay via Ctrl+K, confirmed initial focus, bidirectional Tab-wrap, and Escape-close all work in the running app. Detail: `CHANGELOG.md` → "Remediation Session 7".
 
 > **Update 2026-07-13 (remediation Session 1 — see `CHANGELOG.md` "Remediation Session 1"):** product-naming unification (cosmetic scope — display strings only, not the Vercel domain or webOS bundle ID), git tags (v6.1–v6.10, not yet pushed to origin as of this writing), `cors.ts`/`cron/health-check` dead-code deletion, and the `npm run lint` failure are now **done**. The lint failure turned out to be 97% one `eslint.config.mjs` ignore-pattern bug (linting a nested branch checkout as app source), not a real 1,589-error backlog — real remaining count is ~50. Full remediation plan for everything still open: `C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`.
 >
@@ -35,6 +37,8 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 > **Update 2026-07-13 (remediation Session 4 — see `CHANGELOG.md` "Remediation Session 4"):** `extension_in_public` is resolved and confirmed cleared. The re-run also re-confirmed the SECURITY DEFINER RPC-executability and RLS-no-policy findings from the table below are still present — both already documented there as accepted-by-design, not new.
 >
 > **Update 2026-07-13 (remediation Session 5 — see `CHANGELOG.md` "Remediation Session 5"):** `duplicate_index` is resolved and confirmed cleared. `unused_index` is deferred again, now with concrete evidence (project-wide 0 scans including primary keys) and a scheduled 2026-09-26 recheck rather than an open-ended "someday."
+>
+> **Update 2026-07-13 (remediation Session 7 — see `CHANGELOG.md` "Remediation Session 7"):** accessibility focus-trap/hover-parity is resolved — see above. The remaining pre-existing gaps list (below) no longer includes it.
 
 ## Implementation progress (updated 2026-07-13)
 
@@ -54,7 +58,7 @@ Work done against this roadmap since the audit. Ten commits on `master`, all pus
 | Item | Status | Where |
 |---|---|---|
 | 7. Commerce vertical | 🟡 Plan written; **Phase P0 done, validated, and DEPLOYED to prod 2026-07-13** (8 tables + RLS + money math + tests; 12 owner/seller/anon/service-role RLS scenarios pass; live on the project + advisor-clean). P1 is now **unblocked**. P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7`, `a34815d` |
-| 8. Accessibility pass | 🟡 Keyboard reachability, focus ring, ARIA, AA contrast, skip link done; **full focus-trap + hover/focus parity remain** | v6.8 `c733de5` |
+| 8. Accessibility pass | ✅ Keyboard reachability, focus ring, ARIA, AA contrast, skip link (v6.8) + focus-trap/Escape on all 7 modals + hover/focus parity (Session 7, v6.16) done | v6.8 `c733de5`, Session 7 |
 | 9. `next/image` migration | ✅ Detail + feed posters migrated (visual QA on staging pending) | v6.7 `3d48d03` |
 | 10. `proxy.ts` matcher scoping | ✅ Done (verified) | v6.7 `3d48d03` |
 | 11. Error tracking (Sentry) | ⬜ Deferred by decision (documented gap) | — |
@@ -177,7 +181,7 @@ A prior third-party audit (`ADAM_DOCS/gemini_feedback_05242026.md`, Gemini CLI, 
 - **[High · Confirmed]** Home hero interactive elements are plain `<div>`/`<span onClick>` with **no `tabIndex`/`role`/`onKeyDown`** — the "Quick picks" carousel, Popular Lists rows, and "load more" shortcut are completely unreachable by keyboard or screen reader (`HomeClient.tsx` grep for `tabIndex|onKeyDown|role=` → zero matches).
 - **[High · Confirmed]** The trigger-warning badge exposes *which* topics were flagged only via a native `title` tooltip on a non-focusable `<div>` (`TitleCard.tsx:102-119`) — mouse-hover only. Keyboard/screen-reader users see a bare "⚠ N" with no way to learn what N is — on a feature whose entire purpose is protecting sensitive users.
 - **[Medium · Confirmed]** Browse search input sets `outline: none` with no replacement focus style (WCAG 2.4.7 fail).
-- **[Medium · Confirmed]** Custom modals (trailer, search overlay) lack `role="dialog"`/`aria-modal`, focus trap, and (trailer) any Escape handler — Tab escapes into the page behind.
+- **[Medium · Confirmed]** Custom modals (trailer, search overlay) lack `role="dialog"`/`aria-modal`, focus trap, and (trailer) any Escape handler — Tab escapes into the page behind. **✅ resolved 2026-07-13 (Remediation Session 7)** — and extended to 5 more modals found with the identical gap; see "Outstanding" above.
 - **[Medium · Confirmed]** No "skip to main content" link — every page forces a tab through the full header + 9-item sidebar before content.
 - **[Medium · Confirmed]** `--text-dim: #555870` fails WCAG AA (~2.5:1) as real text — used for the search placeholder, shortcut hint, and clear-× button.
 - **[Low · Confirmed × 4]** Icon-only `×` buttons with no `aria-label`; account dropdown missing `aria-haspopup`/`aria-expanded`/Escape; hover-only affordances with no focus equivalent; search inputs labeled by placeholder only (WCAG 1.3.1/3.3.2). Notably, the codebase gets this *right* in places (trailer close button has `aria-label`, hamburger has `aria-expanded`), so the fix is consistency, not new knowledge.

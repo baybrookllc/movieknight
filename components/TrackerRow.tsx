@@ -118,6 +118,14 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
                 display: 'block',
                 textDecoration: 'none',
               }}
+              onFocus={e => {
+                const el = e.currentTarget.querySelector<HTMLElement>('[data-tracker-overlay]');
+                if (el) { el.style.opacity = '1'; el.style.background = 'rgba(0,0,0,0.7)'; }
+              }}
+              onBlur={e => {
+                const el = e.currentTarget.querySelector<HTMLElement>('[data-tracker-overlay]');
+                if (el) { el.style.opacity = '0'; el.style.background = 'rgba(0,0,0,0)'; }
+              }}
             >
               {/* Poster */}
               {poster ? (
@@ -197,8 +205,9 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
                 />
               </div>
 
-              {/* Title overlay on hover */}
+              {/* Title overlay on hover (and keyboard focus — see onFocus/onBlur on the Link above) */}
               <div
+                data-tracker-overlay
                 style={{
                   position: 'absolute',
                   inset: 0,

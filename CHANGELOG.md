@@ -8,6 +8,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ♿ Remediation Session 7 — accessibility remainder (v6.16, 2026-07-13)
+
+Closes the last gap from v6.8's accessibility pass: focus trap + Escape
+handling on modals, and hover/focus parity so anything reachable by mouse
+is also reachable by keyboard. Scanned the codebase fresh rather than
+trusting the plan's "trailer/search-overlay" framing — found 2 separate
+trailer-modal implementations (not 1) and 4 more modals with the identical
+gap (Add to List, Add Friend, Create List, Recommend), so all 7 got fixed
+together rather than just the 2 originally named.
+
+**Added**
+- **`lib/a11y.ts` — `useFocusTrap` hook**: wires the standard modal keyboard
+  contract onto any dialog — Escape closes it, Tab/Shift+Tab wrap within
+  the dialog's focusable elements instead of escaping to the page behind
+  it, focus moves to the first focusable element (or the dialog itself) on
+  open, and returns to whatever was focused before the dialog opened once
+  it closes. One shared implementation, not one bespoke solution per modal.
+
+**Fixed — 7 modals, all now with focus trap + Escape + proper dialog ARIA:**
+- Trailer modal, `components/DetailClient.tsx` — had neither Escape nor a
+  trap; added both, plus `aria-label` on the previously-unlabeled close (×)
+  button.
+- Trailer modal, `app/(app)/home/HomeClient.tsx` — a second, separate
+  implementation with Escape but a naive `ref={el => el.focus()}` that ran
+  on every render and had no actual trap or focus-restore-on-close;
+  replaced with the shared hook.
+- `components/SearchOverlay.tsx` — had Escape (via a global `window`
+  listener) but no trap and no dialog ARIA at all; added both, and removed
+  the now-redundant Escape branch from the global listener (kept the
+  Cmd/Ctrl+K and `/` open-triggers, which still need to work while the
+  dialog itself isn't open yet).
+- Add-to-List modal (`DetailClient.tsx`), Add Friend modal
+  (`FriendsClient.tsx`), Create List modal (`ListsClient.tsx`), Recommend
+  modal (`app/(app)/profile/[userId]/page.tsx`) — none had Escape or a trap;
+  all four now use the same shared hook plus `role="dialog"`/`aria-modal`/
+  `aria-label`.
+
+**Fixed — hover/focus parity, 8 spots plus 2 more found while in those
+files:** added `onFocus`/`onBlur` mirroring the existing `onMouseEnter`/
+`onMouseLeave` visual state on: the star-rating hover preview and
+`TrackerRow`'s title-reveal overlay and `TitleCard`'s poster-lift effect
+(both reached via a `data-*`-attribute query from the outer `Link`'s
+focus/blur, since the hover effect lives on a non-focusable inner div),
+`BrowseClient`'s grid-item outline ring (React's `onFocus`/`onBlur` bubble
+from a focused descendant, unlike native DOM `focus`/`blur`, so this one
+needed no extra plumbing), `AwardsSection`'s toggle, `ListsClient`'s
+auto-list buttons, `MessagesClient`'s conversation rows, and the
+search-overlay's own result rows (found while already in that file).
+Two elements were **not just missing a focus style but not keyboard-reachable
+at all** — `FriendsClient`'s `FriendItem` and `ListsClient`'s `ListCard`
+were plain `onClick` divs with no `tabIndex`/keyboard handler whatsoever;
+gave both `role="button"`, `tabIndex={0}`, and `onKeyDown` via the existing
+`activateOnKey` helper, on top of the focus-style mirror.
+
+**Verified:** `npm test` (29/29 pass), `npm run lint` (69 problems before
+and after — byte-for-byte identical count, confirming zero net-new lint
+issues from this change), `npm run build` (clean). Live in the browser:
+opened the search overlay via Ctrl+K, confirmed initial focus lands on the
+input, Tab from the last element (ESC button) wraps back to the input,
+Shift+Tab equivalent verified in reverse, and Escape closes it — the
+hardest part of this change (the shared hook) proven end-to-end in the
+running app, not just by type-checking. One own-goal caught by lint before
+it shipped: an early draft of the hook mutated a ref directly during render
+(`react-hooks/refs`) and a first wiring of the Add Friend modal referenced
+two state setters before their `useState` declarations — both fixed;
+confirmed via `git stash` diff that lint's error count returned to exactly
+the pre-change baseline.
+
 ### 🗂️ Remediation Session 5 — duplicate/unused index cleanup (v6.15, 2026-07-13)
 
 Closes out the last deliberately-deferred DB item bucket: `duplicate_index`
@@ -329,13 +397,19 @@ Session 2 migration re-creating indexes that already existed under
 different names; dropped the duplicates, kept the originals. Advisor
 confirmed cleared post-deploy.
 
-**Pre-existing, not yet touched:** Playwright e2e tests, accessibility
-focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch
-decision + rollback/down-migration story, `debug-logger` PII redaction,
-`tv-auth` rate-limiter alerting, the remaining ~50 real lint errors + `any`
-types, and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not
-started). The untracked third-party `gemini_feedbac_05242026.md` at repo root
-(cross-referenced by `movieknight-audit-report.md`) has been moved into
+~~Accessibility focus-trap/hover-parity~~ — **✅ resolved 2026-07-13**
+(Remediation Session 7, above): shared `useFocusTrap` hook applied to all 7
+modals found in the codebase (not just the 2 originally named), plus 10
+hover/focus-parity fixes including 2 elements that weren't keyboard-reachable
+at all.
+
+**Pre-existing, not yet touched:** Playwright e2e tests, Sentry error
+tracking, the `sharp-mayer` branch decision + rollback/down-migration story,
+`debug-logger` PII redaction, `tv-auth` rate-limiter alerting, the remaining
+~50 real lint errors + `any` types, and commerce Phases P1–P4 (P0 is done
+and live; P1 is unblocked, not started). The untracked third-party
+`gemini_feedbac_05242026.md` at repo root (cross-referenced by
+`movieknight-audit-report.md`) has been moved into
 `ADAM_DOCS/gemini_feedback_05242026.md` (typo in the old filename fixed) and
 committed.
 

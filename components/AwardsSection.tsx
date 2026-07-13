@@ -47,6 +47,8 @@ export default function AwardsSection({ awardsData, awardsOpen, onToggle }: Awar
         }}
         onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+        onFocus={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+        onBlur={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 15, fontWeight: 700 }}>Awards</span>

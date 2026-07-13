@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
+import { useFocusTrap } from '@/lib/a11y';
 import {
   TMDB_BACKDROP, TMDB_IMG, FUNCTIONS_URL,
   fmtRuntime, fmtMoney, releaseYear, COUNTRY_NAMES,
@@ -113,6 +114,11 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   const [cast, setCast] = useState<CastMember[]>([]);
   const [awardsData, setAwardsData] = useState<AwardsData | null>(null);
   const [awardsOpen, setAwardsOpen] = useState(false);
+
+  const addToListRef = useRef<HTMLDivElement>(null);
+  const trailerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(addToListRef, showAddToList, () => setShowAddToList(false));
+  useFocusTrap(trailerRef, showTrailer, () => setShowTrailer(false));
 
   // Decode titleId for use in API calls
   const decodedTitleId = decodeURIComponent(titleId);
@@ -386,6 +392,9 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
                     onClick={() => handleRating(star)}
                     onMouseEnter={() => setHoverRating(star)}
                     onMouseLeave={() => setHoverRating(0)}
+                    onFocus={() => setHoverRating(star)}
+                    onBlur={() => setHoverRating(0)}
+                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
                       fontSize: 28,
@@ -486,7 +495,8 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
       {showAddToList && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
           onClick={() => setShowAddToList(false)}>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 28, width: 360, maxWidth: '90vw' }}
+          <div ref={addToListRef} role="dialog" aria-modal="true" aria-label="Add to list" tabIndex={-1}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: 28, width: 360, maxWidth: '90vw' }}
             onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Add to List</h2>
             {myLists.length === 0 ? (
@@ -529,7 +539,8 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000,
         }} onClick={() => setShowTrailer(false)}>
-          <div style={{ position: 'relative', width: '90vw', maxWidth: 900 }}
+          <div ref={trailerRef} role="dialog" aria-modal="true" aria-label={`${data.title} trailer`} tabIndex={-1}
+            style={{ position: 'relative', width: '90vw', maxWidth: 900 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ paddingTop: '56.25%', position: 'relative' }}>
               <iframe
@@ -541,7 +552,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
                 title={`${data.title} trailer`}
               />
             </div>
-            <button onClick={() => setShowTrailer(false)}
+            <button onClick={() => setShowTrailer(false)} aria-label="Close trailer"
               style={{
                 position: 'absolute', top: -40, right: 0,
                 background: 'none', border: 'none', color: '#fff',

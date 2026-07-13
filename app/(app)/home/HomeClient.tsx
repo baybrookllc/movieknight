@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import TrackerRow from '@/components/TrackerRow';
 import { FUNCTIONS_URL, TMDB_BACKDROP, TMDB_IMG, truncate, getAvatarUrl, timeAgo, getAuthHeader } from '@/lib/utils';
-import { activateOnKey } from '@/lib/a11y';
+import { activateOnKey, useFocusTrap } from '@/lib/a11y';
 
 /* ── Types (exported so the server page can reference them) ────── */
 export interface MatchTitle {
@@ -313,6 +313,8 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
 
   // Track whether SSR provided initial data so we skip the initial client fetch
   const hasInitialData = useRef(!!initialMatch);
+  const trailerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(trailerRef, showTrailer, () => setShowTrailer(false));
 
   // Set greeting client-side only to avoid SSR/CSR hydration mismatch.
   // The eslint-disable is intentional: this is the canonical pattern to avoid
@@ -690,13 +692,7 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
       {/* ── Trailer modal ────────────────────────────────────────── */}
       {showTrailer && trailerKey && (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Trailer"
-          tabIndex={-1}
-          ref={(el) => el?.focus()}
           onClick={() => setShowTrailer(false)}
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowTrailer(false); }}
           style={{
             position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(0,0,0,0.9)',
@@ -704,7 +700,8 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
             padding: 24, outline: 'none',
           }}
         >
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 900, position: 'relative' }}>
+          <div ref={trailerRef} role="dialog" aria-modal="true" aria-label="Trailer" tabIndex={-1}
+            onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 900, position: 'relative' }}>
             <button
               onClick={() => setShowTrailer(false)}
               style={{

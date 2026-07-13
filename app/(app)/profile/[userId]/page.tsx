@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import { getAvatarUrl, TMDB_IMG, releaseYear } from '@/lib/utils';
+import { useFocusTrap } from '@/lib/a11y';
 
 interface FriendProfile {
   display_name: string;
@@ -32,6 +33,8 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
   const [recTitle, setRecTitle] = useState('');
   const [recMsg, setRecMsg] = useState('');
   const [showRecModal, setShowRecModal] = useState(false);
+  const recModalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(recModalRef, showRecModal, () => setShowRecModal(false));
 
   useEffect(() => {
     if (!user) return;
@@ -159,7 +162,8 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
       {showRecModal && (
         <div onClick={() => setShowRecModal(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div onClick={e => e.stopPropagation()}
+          <div ref={recModalRef} role="dialog" aria-modal="true" aria-label={`Recommend to ${friendData.display_name}`} tabIndex={-1}
+            onClick={e => e.stopPropagation()}
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 400 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
               Recommend to {friendData.display_name}

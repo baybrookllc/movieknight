@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { TMDB_IMG } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { useFocusTrap } from '@/lib/a11y';
 import type { SearchResult } from '@/lib/types';
 
 export default function SearchOverlay() {
@@ -14,9 +15,12 @@ export default function SearchOverlay() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const genRef = useRef(0);
 
-  // Open on ⌘K or Ctrl+K or /
+  useFocusTrap(dialogRef, open, () => setOpen(false));
+
+  // Open on ⌘K or Ctrl+K or / — Escape-to-close is handled by useFocusTrap above
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (document.activeElement as HTMLElement)?.tagName;
@@ -25,18 +29,14 @@ export default function SearchOverlay() {
         e.preventDefault();
         setOpen(true);
       }
-      if (e.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Focus input when opened
+  // Reset query/results when closed (initial focus-on-open is handled by useFocusTrap above)
   useEffect(() => {
-    if (open) {
-      const t = setTimeout(() => inputRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    } else {
+    if (!open) {
       startTransition(() => {
         setQuery('');
         setResults([]);
@@ -96,6 +96,11 @@ export default function SearchOverlay() {
       onClick={() => setOpen(false)}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        tabIndex={-1}
         style={{
           width: '100%', maxWidth: 640, height: 'fit-content',
           background: 'var(--bg-surface)',
@@ -146,7 +151,9 @@ export default function SearchOverlay() {
                     transition: 'background 0.1s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  onFocus={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                  onBlur={e => (e.currentTarget.style.background = 'none')}>
                   {/* Poster */}
                   <div style={{ width: 36, height: 54, flexShrink: 0, background: 'var(--bg)', border: '1px solid var(--border-light)', overflow: 'hidden', position: 'relative' }}>
                     {r.poster_path && (
