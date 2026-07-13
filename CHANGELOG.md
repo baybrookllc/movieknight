@@ -8,13 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### 📋 Docs & housekeeping
+### 🛒 Commerce vertical — Phase P0 (schema + money math)
+
+First increment of the physical-media commerce build
+(`ADAM_DOCS/commerce-vertical-plan.md`). Backend only — no UI yet.
 
 **Added**
-- `ADAM_DOCS/commerce-vertical-plan.md` — implementation plan for the
-  physical-media commerce vertical (fulfillment-model fork, schema, Stripe
-  boundary, Canadian tax/shipping, phasing, and the decisions still needed).
-  Awaiting go-ahead before Phase P0 (schema + RLS) is built.
+- **`supabase/migrations/20260712000001_commerce_schema.sql`** — the commerce
+  schema: `product_editions` (FK to `titles`), `listings` (nullable `seller_id`
+  = marketplace-ready), `carts`/`cart_items`, `orders`/`order_items`,
+  `shipping_addresses`, and a `tax_rates` reference table seeded with all 13
+  CA provinces/territories. Full RLS: catalog is public-read; cart/orders/
+  addresses are owner-only; orders have **no client write grant** (service-role
+  only, written after payment). Money stored as integer cents. Seeds a few
+  first-party Blu-ray listings for the most popular titles.
+  ⚠️ Auto-applies to production on push to `master` (no down-migration) — review
+  before pushing; provincial tax rates should be verified against CRA.
+- **`lib/commerce.ts`** + **`lib/commerce.test.ts`** — pure money-math helpers
+  (subtotal, per-province tax, tiered/free shipping, order totals, CAD
+  formatting) with 16 unit tests. 29 tests total, all green.
+
+**Next (Phase P1):** shop catalog page, buy panel on the title detail page, and
+the Zustand + server-persisted cart. Phase P2 wires Stripe (needs your Stripe
+account + keys; see plan §10).
 
 **Removed**
 - Deleted the stale `claude/elegant-agnesi-6a348c` branch (a strict ancestor of
