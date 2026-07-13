@@ -8,6 +8,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🗂️ Remediation Session 5 — duplicate/unused index cleanup (v6.15, 2026-07-13)
+
+Closes out the last deliberately-deferred DB item bucket: `duplicate_index`
+(fixed) and `unused_index` (formally deferred with evidence + a scheduled
+recheck, not just deprioritized).
+
+**Added**
+- **`supabase/migrations/20260713000007_drop_duplicate_indexes.sql`**: drops
+  3 confirmed byte-for-byte duplicate indexes (`idx_follows_following`,
+  `idx_list_members_user`, `idx_messages_receiver_unread`). Root cause
+  traced precisely: `20260515000005_performance_refinement.sql`'s guarded
+  `CREATE INDEX` statements for these 3 never actually ran (that whole
+  transaction silently rolled back — the `watch_history.created_at` typo
+  fixed in Session 2), but Session 2's own fix
+  (`20260713000004_apply_missed_wave6_indexes.sql`) re-created them under
+  the same names without checking whether equivalent indexes already
+  existed under *different* names — `idx_follows_following_id` and
+  `idx_list_members_user_id` from the pre-tracking baseline, and
+  `idx_messages_unread` from an earlier, successfully-applied migration.
+  Kept the originals, dropped the Session-2-introduced duplicates.
+
+**Validated (isolated local Postgres, same
+`public.ecr.aws/supabase/postgres:15.8.1.085` image):** full 45-migration
+replay clean; confirmed exactly the 3 intended indexes survive (one per
+pair). **Deployed:** `supabase db push`. Post-deploy `pg_indexes` confirms
+only the intended survivor remains in each pair; `get_advisors(performance)`
+no longer lists `duplicate_index`.
+
+**`unused_index` (59 live findings) — deferred again, this time with real
+evidence, not a shrug:** queried `pg_stat_user_indexes` directly — every
+single index in the database, including every primary key, shows
+`idx_scan = 0`, and `pg_stat_database.stats_reset` is `null` (stats have
+never been reset since the project started). That's strong, concrete
+confirmation the deferral rationale from the original audit is sound: this
+project has had negligible real production query traffic project-wide, so
+`pg_stat`'s "unused" signal is meaningless right now — not a case-by-case
+judgment call to make today. Scheduled a one-time recheck task
+(`movieknight-unused-index-recheck`, fires 2026-09-26) that re-runs
+`get_advisors(performance)` against real accumulated traffic and reports
+back with an actual punch list, rather than leaving this as an open-ended
+"someday" item.
+
 ### 🧩 Remediation Session 4 — pgvector relocation (v6.14, 2026-07-13)
 
 Closes the `extension_in_public` security-advisor finding: the `vector`
@@ -256,11 +298,13 @@ step-by-step):**
   `gh secret list`. `deploy-migrations.yml` will now auto-deploy migrations on
   push instead of skipping gracefully.
 
-**Deliberately deferred DB items still open:** dropping `unused_index`
-findings (59 live, mostly on tables too young for `pg_stat` to mean anything
-— recommend a 60-90 day recheck instead of acting now, Session 5); the
-`duplicate_index` WARN on 3 tables (`follows`, `list_members`, `messages` —
-surfaced in Session 3), queued alongside Session 5's index review.
+**Deliberately deferred, with a scheduled recheck (not a shrug):**
+`unused_index` (59 live findings) — every index in the DB, including every
+primary key, shows `idx_scan = 0` with stats never reset, so there's no
+real traffic signal to judge by yet. One-time recheck task
+`movieknight-unused-index-recheck` scheduled for 2026-09-26 to re-run
+`get_advisors(performance)` and report a real punch list once traffic has
+accumulated.
 
 ~~The migration-history bootstrap-gap baseline~~ — **✅ resolved 2026-07-13**
 (Remediation Session 2): a from-zero replay of the full migration history now
@@ -274,10 +318,16 @@ policies dropped, 1 narrower replacement added. Both advisor findings
 confirmed at 0 post-deploy.
 
 ~~Move the `vector` extension out of `public`~~ — **✅ resolved 2026-07-13**
-(Remediation Session 4, above): relocated to a dedicated `extensions`
-schema, `match_titles` search_path updated, validated with real embedding
-inserts + HNSW similarity queries before and after deploy.
-`extension_in_public` confirmed cleared post-deploy.
+(Remediation Session 4): relocated to a dedicated `extensions` schema,
+`match_titles` search_path updated, validated with real embedding inserts +
+HNSW similarity queries before and after deploy. `extension_in_public`
+confirmed cleared post-deploy.
+
+~~`duplicate_index` (3 pairs on `follows`/`list_members`/`messages`)~~ —
+**✅ resolved 2026-07-13** (Remediation Session 5, above): root-caused to a
+Session 2 migration re-creating indexes that already existed under
+different names; dropped the duplicates, kept the originals. Advisor
+confirmed cleared post-deploy.
 
 **Pre-existing, not yet touched:** Playwright e2e tests, accessibility
 focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch
