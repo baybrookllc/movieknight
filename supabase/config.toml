@@ -3,6 +3,14 @@
 
 project_id = "nwvliipxqedueskhxdym"
 
+# Non-default local ports so `supabase db start` doesn't collide with other
+# projects' local stacks on this machine (e.g. the sibling "Travel" project
+# on the CLI's default 54321-54329 range).
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 15
+
 [functions.semantic-search]
 # Public endpoint — homepage hero recommendations called by anonymous guests.
 # JWT verification must be off so unauthenticated callers reach the function.

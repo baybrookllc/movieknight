@@ -1,6 +1,6 @@
 # Physical-Media Commerce Vertical — Implementation Plan
 
-**Status:** Phase P0 **complete** (schema + RLS + money math, committed `84b6be7`, not yet pushed/applied). P1 pending. Decisions §10 #2–4 still open. · **Author:** Claude · **Date:** 2026-07-12
+**Status:** Phase P0 **complete and validated locally** (schema + RLS + money math, committed `84b6be7`; validated against an isolated local Postgres 2026-07-13, see `CHANGELOG.md` — still not applied to the linked/production project). P1 pending on that push. Decisions §10 #2–4 still open. · **Author:** Claude · **Date:** 2026-07-13
 
 ## 1. Context — why this is the differentiator
 
@@ -70,13 +70,13 @@ All tables FK to the existing `titles(id)` where a product represents a physical
 
 | Phase | Scope | Effort | "Done" when | Status |
 |---|---|---|---|---|
-| **P0** Schema + RLS | All tables, RLS policies, tax reference data, seed a few editions, money-math helpers + tests | 2 days | Migration applies; RLS verified; can query editions for a title | ✅ **Code done** (`84b6be7`); migration not yet applied/verified against a live DB |
+| **P0** Schema + RLS | All tables, RLS policies, tax reference data, seed a few editions, money-math helpers + tests | 2 days | Migration applies; RLS verified; can query editions for a title | ✅ **Done** (`84b6be7`); validated locally 2026-07-13 (schema, indexes, seeds, 12 RLS scenarios) — not yet applied to the linked project |
 | **P1** Catalog + cart | Shop page, detail-page buy panel, Zustand+server cart | 3 days | Add-to-cart works cross-device; cart persists | ⬜ Not started (best done after P0 migration is applied) |
 | **P2** Checkout + Stripe (test mode) | Checkout route, PaymentIntent, webhook, order creation, tax/shipping calc | 3–4 days | Test-mode purchase creates a `paid` order; inventory decrements | ⬜ Blocked on your Stripe account + §10 #2 |
 | **P3** Orders + polish | Order history, emails/confirmation, edge cases, tests | 2 days | Buyer sees order history; refund path defined | ⬜ Not started |
 | **P4** (optional, model B) | Seller listings, Stripe Connect payouts, seller dashboard | +2 weeks | A user can list, sell, and get paid out | ⬜ Not started |
 
-**Done in P0:** `supabase/migrations/20260712000001_commerce_schema.sql` (8 tables + RLS + 13-province tax seed + first-party listing seeds) and `lib/commerce.ts` (+ 16 tests). **Remaining before P1 is verifiable:** apply the migration (push to `master`, or validate via a Supabase access token first).
+**Done in P0:** `supabase/migrations/20260712000001_commerce_schema.sql` (8 tables + RLS + 13-province tax seed + first-party listing seeds) and `lib/commerce.ts` (+ 16 tests), validated locally against an isolated Postgres instance. **Remaining before P1 is buildable:** apply the migration to the linked Supabase project — either `supabase db push` (CLI is already authenticated against the linked project on this machine) or via a Management API access token for the MCP tools. Local validation can't substitute for this: P1 needs live tables to build the cart against.
 
 **First-party MVP (P0–P3): ~2 weeks.** Marketplace (P4): +2 weeks. Deployed behind a feature flag until the Stripe account is live.
 

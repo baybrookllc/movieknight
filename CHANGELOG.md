@@ -28,6 +28,50 @@ First increment of the physical-media commerce build
   (subtotal, per-province tax, tiered/free shipping, order totals, CAD
   formatting) with 16 unit tests. 29 tests total, all green.
 
+**Verified — P0 migration validated locally (2026-07-13).** The linked Supabase
+project's Management API wasn't reachable from this session (no access token
+configured), and replaying the full local migration history from scratch fails
+independently of this change — `20260416000000_add_title_columns.sql` assumes
+`titles` already exists, which predates migration tracking (created directly in
+the dashboard). So the P0 migration was validated in isolation: a throwaway
+local Postgres (Docker, via the Supabase CLI, fully separate from the linked
+project and from the sibling `Travel` project's local stack) with a minimal
+stand-in `titles` table, then the real `20260712000001_commerce_schema.sql`
+applied verbatim on top. Confirmed:
+  - All 8 tables, all 8 declared indexes, and both UNIQUE constraints are
+    created exactly as specified.
+  - Seed data is correct: 13/13 CA tax rates at the specified fractions; the
+    top-5-by-popularity edition seed correctly excludes a NULL-popularity row.
+  - RLS holds under 12 scenarios run as `anon`/`authenticated`/service-role
+    with two distinct simulated users: catalog/tax are public-read; carts,
+    cart_items, and shipping_addresses are owner-isolated (a second user gets
+    zero rows, not an error); a seller can list an existing catalog edition
+    and only that seller sees it while `paused`; a seller cannot create a
+    listing under another user's `seller_id`; `orders`/`order_items` have no
+    client INSERT path (blocked for `authenticated`, service-role bypasses
+    RLS and a buyer sees only their own order); the `price_cents >= 0` CHECK
+    rejects negative prices.
+  - Money-math CHECK constraints and FKs (`ON DELETE CASCADE`/`SET NULL`)
+    behave as declared.
+  - The migration is not safely re-runnable as a raw SQL file outside the
+    CLI's tracked-migration mechanism (`CREATE POLICY` has no `IF NOT EXISTS`
+    guard) — not a real-world risk since `supabase db push` tracks applied
+    versions and never re-executes a file, but worth knowing if anyone ever
+    pastes this file into the SQL editor by hand.
+  - **Note for Phase P4 (not a P0 defect):** `product_editions` has no INSERT
+    grant/policy for `authenticated` — only `listings` has the marketplace
+    seller hook. A P2P seller can list an *existing* catalog edition but can't
+    add a new one; P4 needs either an admin-curation flow or an expanded
+    grant/policy on `product_editions`.
+  - Also added a `[db]` port override in `supabase/config.toml` (55322/55320)
+    so local `supabase db start` doesn't collide with the `Travel` project's
+    stack on this machine's default 54321-54329 range.
+
+No changes were made to the linked/production database — this was local-only
+validation. **Next:** push `84b6be7`'s migration to the linked project (`supabase
+db push` or via a Supabase access token) before starting P1 UI work, since P1
+(cart) needs live tables to build against.
+
 **Next (Phase P1):** shop catalog page, buy panel on the title detail page, and
 the Zustand + server-persisted cart. Phase P2 wires Stripe (needs your Stripe
 account + keys; see plan §10).
