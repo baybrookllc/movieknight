@@ -27,7 +27,7 @@ Work done against this roadmap since the audit. Eight commits on `master` (none 
 ### Next milestone — partial
 | Item | Status | Where |
 |---|---|---|
-| 7. Commerce vertical | 🟡 Plan written; **Phase P0 done and validated** (schema + RLS + money math + tests; RLS behaviorally confirmed 2026-07-13 against an isolated local Postgres — 12 owner/seller/anon/service-role scenarios, all pass). **Not yet applied to the live/linked Supabase project** — still blocking P1. P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7`, `a34815d` |
+| 7. Commerce vertical | 🟡 Plan written; **Phase P0 done, validated, and DEPLOYED to prod 2026-07-13** (8 tables + RLS + money math + tests; 12 owner/seller/anon/service-role RLS scenarios pass; live on the project + advisor-clean). P1 is now **unblocked**. P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7`, `a34815d` |
 | 8. Accessibility pass | 🟡 Keyboard reachability, focus ring, ARIA, AA contrast, skip link done; **full focus-trap + hover/focus parity remain** | v6.8 `c733de5` |
 | 9. `next/image` migration | ✅ Detail + feed posters migrated (visual QA on staging pending) | v6.7 `3d48d03` |
 | 10. `proxy.ts` matcher scoping | ✅ Done (verified) | v6.7 `3d48d03` |
@@ -42,16 +42,22 @@ Work done against this roadmap since the audit. Eight commits on `master` (none 
 - The **commerce migration is committed and now locally validated, but still not applied to the live project.** `deploy-migrations.yml` auto-runs `supabase db push --linked` the moment `supabase/migrations/**` or `supabase/config.toml` reaches `origin/master` — so this happens automatically on the next `git push`, not on a separate manual step. No `SUPABASE_ACCESS_TOKEN` was available this session (closing that gap still requires one — see the note at the top of this doc).
 - **New finding (2026-07-13, discovered while validating the commerce migration):** the migration history is **not bootstrappable from a blank database.** `supabase/migrations/20260416000000_add_title_columns.sql` runs `ALTER TABLE titles ADD COLUMN …` and assumes `titles` already exists — it doesn't, unless `titles` was created out-of-band (e.g. directly in the Supabase dashboard) before migration tracking started on this project. Confirmed by running `supabase db start` against a fresh local Postgres with the full migration set: it fails at that file with `relation "titles" does not exist`. This is a **disaster-recovery gap** — if the live database were ever lost, replaying these migrations from zero would not rebuild it. Pre-existing, unrelated to the commerce work; **not yet fixed** (needs a squashed baseline / "initial schema" migration; deferred as it's risky migration-history surgery best done as its own reviewed change).
 
-## Live advisor remediation (2026-07-13)
+## Live advisor remediation (2026-07-13) — ✅ DEPLOYED & VERIFIED
 
-Once the `SUPABASE_ACCESS_TOKEN` was configured, `get_advisors` was run against the live project. Findings and what was done. Two tracked migrations were authored and **validated end-to-end against an isolated local Postgres** (RLS behaviour, the search_path loop incl. pgvector exclusion, FK indexes, duplicate-index drops, idempotency) — **not yet applied to prod** (awaiting deploy approval).
+Once the `SUPABASE_ACCESS_TOKEN` was configured, `get_advisors` was run against the live project. Tracked migrations were authored, **validated end-to-end against an isolated local Postgres** (RLS behaviour, the search_path loop incl. pgvector exclusion, FK indexes, duplicate-index drops, idempotency), then **applied to prod via `supabase db push` and re-verified by re-running the advisors**.
+
+**Post-deploy advisor counts:** `rls_disabled_in_public` 2→**0**, `function_search_path_mutable` 45→**0**, `unindexed_foreign_keys` 8→**0** (incl. 4 commerce FKs surfaced post-deploy, fixed in `20260713000003`), `duplicate_index` 2→**0**. Commerce P0 (8 tables, 13 tax rows) also live.
+
+**Two pre-existing infrastructure bugs were found and fixed while deploying:**
+- **CI deploy silently broken for months.** `deploy-migrations.yml` ran `supabase db push --project-ref …`; `--project-ref` is not a valid `db push` flag, so every run failed (migrations had been applied by other means). Fixed: `supabase link` + `db push`, a working commit-comment failure notifier, and a graceful skip when `SUPABASE_DB_PASSWORD` is absent. **Requires** a `SUPABASE_DB_PASSWORD` Actions secret to auto-deploy.
+- **Migration-history mismatch.** The 8-digit `20260515_add_streaming_platforms.sql` collated ambiguously vs. its 14-digit siblings, so `db push` refused with a spurious "remote versions not found in local" error (recurring every push). Durably fixed: renamed to `20260515000000_…` and reconciled the remote history table; `migration list` now fully matched. (This is the deploy-blocking symptom of the broader bootstrap-gap; the full baseline remains deferred.)
 
 **Security (`get_advisors security`) — 2 ERROR, 137 WARN, 1 INFO:**
 
 | Finding | Count | Disposition |
 |---|---|---|
-| `rls_disabled_in_public` — `streaming_platforms`, `title_streaming_platforms` | 2 (ERROR) | **Fixed** in `20260713000001` — enable RLS + `public read` SELECT policy (mirrors `genres`). Confirmed live: anon had *effective INSERT* via default privileges (a real write hole); reads unchanged, writes now service-role-only. |
-| `function_search_path_mutable` — user functions with a role-mutable `search_path` | 45 | **Fixed** in `20260713000001` — self-scoping loop pins every non-extension public function to `search_path = public` (matches the 5 already-pinned siblings). pgvector functions excluded. |
+| `rls_disabled_in_public` — `streaming_platforms`, `title_streaming_platforms` | 2 (ERROR) | **Fixed & deployed** in `20260713000001` — enable RLS + `public read` SELECT policy (mirrors `genres`). Confirmed live: anon had *effective INSERT* via default privileges (a real write hole); reads unchanged, writes now service-role-only. Advisor now reports 0. |
+| `function_search_path_mutable` — user functions with a role-mutable `search_path` | 45 | **Fixed & deployed** in `20260713000001` — self-scoping loop pins every non-extension public function to `search_path = public` (matches the 5 already-pinned siblings). pgvector functions excluded. Advisor now reports 0. |
 | `anon`/`authenticated_security_definer_function_executable` | 90 | Not a distinct fix — these are the same SECURITY DEFINER RPCs; pinning their search_path (above) closes the exploitable surface. Their EXECUTE grants are intentional (they *are* the app's RPC API, each doing its own auth check). |
 | `rls_enabled_no_policy` — `device_auth_codes` | 1 (INFO) | **By design** (service-role-only device flow). BUT the source migration `20260416000005` defines `CREATE POLICY … FOR SELECT USING (true)` which would leak `access_token`/`refresh_token` to any anon if replayed. **Hardened** in `20260713000001` with a defensive `DROP POLICY IF EXISTS` (no-op today; protects against DR replay). |
 | `extension_in_public` — `vector` in `public` | 1 | **Deliberately not moved.** Relocating pgvector risks breaking the `embedding vector(1536)` column type + HNSW index + operators for ~0 benefit. Accepted. |
@@ -61,8 +67,8 @@ Once the `SUPABASE_ACCESS_TOKEN` was configured, `get_advisors` was run against 
 
 | Finding | Count | Disposition |
 |---|---|---|
-| `unindexed_foreign_keys` | 8 | **Fixed** in `20260713000002` — added a covering index per FK column. |
-| `duplicate_index` — redundant UNIQUE identical to the PK (`list_ratings`, `title_genres`) | 2 | **Fixed** in `20260713000002` — dropped the redundant UNIQUE (verified no FK references it; PK still enforces uniqueness). |
+| `unindexed_foreign_keys` | 8 (+4) | **Fixed & deployed** — a covering index per FK column in `20260713000002`; 4 more commerce FKs surfaced post-deploy fixed in `20260713000003`. Advisor now reports 0. |
+| `duplicate_index` — redundant UNIQUE identical to the PK (`list_ratings`, `title_genres`) | 2 | **Fixed & deployed** in `20260713000002` — dropped the redundant UNIQUE (verified no FK references it; PK still enforces uniqueness). Advisor now reports 0. |
 | `auth_rls_initplan` — `auth.uid()` re-evaluated per-row | 53 | **Deferred.** Behaviour-preserving `(select auth.uid())` rewrite of 53 live policies; ~0 benefit on today's near-empty tables; wants a dedicated, individually-verified pass. |
 | `multiple_permissive_policies` | 21 | **Deferred.** Consolidation changes access logic; low current benefit. |
 | `unused_index` | 41 | **Deliberately not dropped.** `pg_stat` "unused" is unreliable on a young/low-traffic DB and several are deliberate feature indexes — dropping them risks degrading planned features. |

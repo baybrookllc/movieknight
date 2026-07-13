@@ -229,7 +229,7 @@ First-party retail MVP with a marketplace-ready shape (`listings.seller_id` null
 All money is stored in **integer cents**. Design rationale and phasing:
 `ADAM_DOCS/commerce-vertical-plan.md`.
 
-> **Status:** migration committed (`84b6be7`) and validated locally against an isolated Postgres instance (`a34815d`, 2026-07-13 — schema, indexes, seeds, RLS across 12 scenarios, all pass) but **not yet applied** to the live DB. Applies automatically via `deploy-migrations.yml` on the next push to `origin/master`.
+> **Status:** ✅ **applied to production 2026-07-13** (via `supabase db push`; validated locally first, advisor-clean after). 8 tables live, `tax_rates` seeded with 13 rows.
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|

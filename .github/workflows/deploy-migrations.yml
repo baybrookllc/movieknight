@@ -25,25 +25,51 @@ jobs:
       - name: Install Supabase CLI
         run: npm install -g supabase@latest
 
-      - name: Deploy migrations to production
-        run: supabase db push --linked --project-ref nwvliipxqedueskhxdym
+      # Gracefully skip (instead of failing red) if the DB password secret is
+      # absent. `supabase db push` needs a linked project, which requires the
+      # database password — the access token alone is not enough. Add
+      # SUPABASE_DB_PASSWORD in repo Settings → Secrets to enable auto-deploy.
+      - name: Check for DB password secret
+        id: check
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "${SUPABASE_DB_PASSWORD}" ]; then
+            echo "has_password=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_DB_PASSWORD secret not set — skipping migration deploy. Add it in repo Settings → Secrets and variables → Actions to enable automatic migration deployment."
+          else
+            echo "has_password=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # NOTE: `db push` does NOT accept --project-ref (that was the long-standing
+      # bug that made every run fail). Link first, then push.
+      - name: Link project and push migrations
+        if: steps.check.outputs.has_password == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref nwvliipxqedueskhxdym
+          supabase db push
 
       - name: Verify deployment
+        if: steps.check.outputs.has_password == 'true'
         run: |
           echo "✅ Migrations deployed successfully"
           echo "Deployed at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
 
+      # Post a COMMIT comment on failure. A `push` event has no issue/PR number,
+      # so the previous issues.createComment call always 404'd — use
+      # createCommitComment, which works for pushes.
       - name: Notify on failure
         if: failure()
         uses: actions/github-script@v7
         with:
           script: |
-            const commit = context.payload.head_commit;
-            github.rest.issues.createComment({
+            const sha = context.sha;
+            await github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `❌ **Supabase migration deployment failed** for commit ${commit.id.substring(0, 7)}\n\nCheck the [workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details.`
+              commit_sha: sha,
+              body: `❌ **Supabase migration deployment failed** for commit ${sha.substring(0, 7)}\n\nCheck the [workflow logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`
             });

@@ -12,10 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 After the `SUPABASE_ACCESS_TOKEN` was configured (closing the audit's known
 gap), `get_advisors(security)` and `get_advisors(performance)` were run against
-the live project. Two tracked migrations were authored and **validated
-end-to-end against an isolated local Postgres** — **not yet applied to prod**
-(awaiting deploy approval). Full findings table: `ADAM_DOCS/movieknight-audit-report.md`
+the live project. Tracked migrations were authored, **validated end-to-end
+against an isolated local Postgres**, then **applied to production and verified
+by re-running the advisors**. Full findings table: `ADAM_DOCS/movieknight-audit-report.md`
 → "Live advisor remediation".
+
+**✅ Deployed & verified on prod (2026-07-13).** Applied via `supabase db push`
+(the CI workflow was broken — see below). Post-deploy advisor re-run confirms:
+`rls_disabled_in_public` **0** (was 2 ERROR), `function_search_path_mutable`
+**0** (was 45), `unindexed_foreign_keys` **0** (was 8 + 4 new commerce FKs),
+`duplicate_index` **0** (was 2). Commerce P0 (8 tables, 13 tax rows) also live.
 
 **Added**
 - **`supabase/migrations/20260713000001_security_advisories.sql`**:
@@ -35,24 +41,44 @@ end-to-end against an isolated local Postgres** — **not yet applied to prod**
   - Covering indexes for 8 unindexed foreign keys.
   - Drop 2 redundant UNIQUE constraints identical to the primary key
     (`list_ratings`, `title_genres`) — verified no FK depends on them.
+- **`supabase/migrations/20260713000003_commerce_fk_indexes.sql`**: covering
+  indexes for 4 commerce foreign keys (`cart_items.listing_id`,
+  `order_items.edition_id`, `order_items.listing_id`,
+  `orders.shipping_address_id`) that the post-deploy advisor surfaced once the
+  commerce schema landed.
 
-**Validated (isolated local Postgres, throwaway):** RLS on + policy present;
-anon can read but **anon INSERT is denied**; the search_path loop pins every
-unpinned user function, leaves already-pinned ones alone, and correctly skips
-pgvector (0 remaining unpinned); all 8 FK indexes created; both duplicate
-UNIQUE constraints drop while the PK's uniqueness is retained; both migrations
-re-run clean (idempotent).
+**Fixed — CI migration deploy was broken (pre-existing).** `deploy-migrations.yml`
+ran `supabase db push --project-ref …`, but `--project-ref` is not a valid flag
+for `db push` — so **every migration-deploy run had been failing silently for
+months** (migrations were applied by other means). Corrected to `supabase link`
++ `supabase db push`, fixed the failure-notify step (it POSTed to a nonexistent
+issue on `push` events → 404; now a commit comment), and added a graceful skip
+when the required `SUPABASE_DB_PASSWORD` secret is absent. **Action needed:** add
+a `SUPABASE_DB_PASSWORD` GitHub Actions secret to enable automatic deploys;
+until then, migrations must be pushed manually with `supabase db push`.
+
+**Fixed — migration-history mismatch (pre-existing).** The old 8-digit-named
+`20260515_add_streaming_platforms.sql` collated ambiguously against its 14-digit
+`20260515000001–06` siblings, so `supabase db push` refused with a spurious
+"remote versions not found in local" error (and it recurred on every push).
+Durably resolved: renamed to `20260515000000_add_streaming_platforms.sql` and
+reconciled the remote history table (repair reverted `20260515` / applied
+`20260515000000`). `supabase migration list` is now fully matched Local↔Remote.
+
+**Validated (isolated local Postgres, throwaway) before deploy:** RLS on + policy
+present; anon can read but **anon INSERT is denied**; the search_path loop pins
+every unpinned user function, leaves already-pinned ones alone, and correctly
+skips pgvector (0 remaining unpinned); FK indexes created; duplicate UNIQUE
+constraints drop while the PK's uniqueness is retained; migrations re-run clean
+(idempotent). **Re-verified against prod after deploy** (advisor counts above).
 
 **Deliberately deferred / not changed** (documented with rationale — would risk
 degrading behaviour for ~0 current benefit, or need a separate reviewed pass):
-`extension_in_public` (moving pgvector), `unused_index` ×41 (unreliable stats on
-a near-empty DB), `auth_rls_initplan` ×53 + `multiple_permissive_policies` ×21
-(behaviour-preserving policy rewrites). **Leaked-password protection** needs a
-one-click dashboard toggle (Pro-plan Auth setting) — not changed autonomously.
-
-**Not yet applied to prod.** Applies automatically via `deploy-migrations.yml`
-on the next push of `supabase/migrations/**` to `origin/master`; awaiting
-explicit deploy approval.
+`extension_in_public` (moving pgvector), `unused_index` (unreliable stats on a
+near-empty DB), `auth_rls_initplan` + `multiple_permissive_policies` (behaviour-
+preserving policy rewrites), and the broader migration-history bootstrap-gap
+baseline. **Leaked-password protection** still needs a one-click dashboard toggle
+(Pro-plan Auth setting) — not changed autonomously.
 
 ### 🛒 Commerce vertical — Phase P0 (schema + money math)
 
