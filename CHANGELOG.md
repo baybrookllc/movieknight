@@ -8,6 +8,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🔒 Live Supabase advisor remediation (v6.9)
+
+After the `SUPABASE_ACCESS_TOKEN` was configured (closing the audit's known
+gap), `get_advisors(security)` and `get_advisors(performance)` were run against
+the live project. Two tracked migrations were authored and **validated
+end-to-end against an isolated local Postgres** — **not yet applied to prod**
+(awaiting deploy approval). Full findings table: `ADAM_DOCS/movieknight-audit-report.md`
+→ "Live advisor remediation".
+
+**Added**
+- **`supabase/migrations/20260713000001_security_advisories.sql`**:
+  - **Critical:** enable RLS + a `public read` SELECT policy on
+    `streaming_platforms` and `title_streaming_platforms` (were RLS-disabled in
+    the API-exposed schema; live check showed anon held *effective INSERT* via
+    default privileges — a real write hole). Reads unchanged; writes are now
+    service-role-only, matching the existing server-side sync.
+  - Pin `search_path = public` on all 45 flagged non-extension public functions
+    (closes `function_search_path_mutable`; a self-scoping `DO` loop that
+    excludes pgvector and skips already-pinned functions).
+  - Defensively `DROP POLICY IF EXISTS "anon can read code by pk"` on
+    `device_auth_codes` — the `20260416000005` migration defines that policy as
+    `FOR SELECT USING (true)`, which would expose `access_token`/`refresh_token`
+    to any anon if ever replayed. No-op against current live state.
+- **`supabase/migrations/20260713000002_perf_fk_indexes.sql`**:
+  - Covering indexes for 8 unindexed foreign keys.
+  - Drop 2 redundant UNIQUE constraints identical to the primary key
+    (`list_ratings`, `title_genres`) — verified no FK depends on them.
+
+**Validated (isolated local Postgres, throwaway):** RLS on + policy present;
+anon can read but **anon INSERT is denied**; the search_path loop pins every
+unpinned user function, leaves already-pinned ones alone, and correctly skips
+pgvector (0 remaining unpinned); all 8 FK indexes created; both duplicate
+UNIQUE constraints drop while the PK's uniqueness is retained; both migrations
+re-run clean (idempotent).
+
+**Deliberately deferred / not changed** (documented with rationale — would risk
+degrading behaviour for ~0 current benefit, or need a separate reviewed pass):
+`extension_in_public` (moving pgvector), `unused_index` ×41 (unreliable stats on
+a near-empty DB), `auth_rls_initplan` ×53 + `multiple_permissive_policies` ×21
+(behaviour-preserving policy rewrites). **Leaked-password protection** needs a
+one-click dashboard toggle (Pro-plan Auth setting) — not changed autonomously.
+
+**Not yet applied to prod.** Applies automatically via `deploy-migrations.yml`
+on the next push of `supabase/migrations/**` to `origin/master`; awaiting
+explicit deploy approval.
+
 ### 🛒 Commerce vertical — Phase P0 (schema + money math)
 
 First increment of the physical-media commerce build

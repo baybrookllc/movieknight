@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12 · **Branch audited:** `master` (@ `3477455`) · **Method:** 9-dimension structured audit, every high-severity "Confirmed" finding independently re-verified against source. 49 findings total (2 Blocker, 10 High, 16 Medium, 20 Low, 1 downgraded to Inferred on re-check).
 
-> **Known gap in this audit:** Live Supabase advisors (per-table RLS status via `get_advisors`/`list_tables`, query-performance advisor) were **not reachable** — the Supabase MCP had no authorized access token when this ran. Every security/DB finding below is from reading migration SQL and code directly, not from live database introspection. RLS "presence" is confirmed from migration files, not from the running database's actual enabled state. Re-run the security section with a `SUPABASE_ACCESS_TOKEN` to close this. **Still open as of 2026-07-13** — the commerce migration's RLS was instead validated behaviorally against an isolated local Postgres (see "Implementation progress" item 7 below and `CHANGELOG.md`), which proves the *policies do what they claim* but doesn't substitute for `get_advisors` against the live project (missing-RLS-on-a-table-type findings, performance advisor, etc.).
+> **Known gap in this audit — CLOSED 2026-07-13.** Live Supabase advisors were originally **not reachable** (no access token). The token was configured on 2026-07-13 and `get_advisors(security)` + `get_advisors(performance)` were run against the live project. Findings + remediation are in the "Live advisor remediation" section directly below. The originally-flagged code/migration-SQL reasoning held up: RLS *was* genuinely missing on the two streaming tables live. Net-new items the live scan surfaced that static review could not: the exact function-search_path inventory (45), the live RLS-disabled confirmation with effective anon-INSERT, the performance advisors, and a latent token-leak policy in the device-auth migration (see below).
 
 ---
 
@@ -40,7 +40,32 @@ Work done against this roadmap since the audit. Eight commits on `master` (none 
 ### Also outstanding
 - The **project-wide `npm run lint` failure (~1,589 errors)** — mostly `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout and `mcp-server/dist` build output being linted. The CI `lint` job is red independently of the above; `build` and the new `test` job pass. (relates to items 15/18)
 - The **commerce migration is committed and now locally validated, but still not applied to the live project.** `deploy-migrations.yml` auto-runs `supabase db push --linked` the moment `supabase/migrations/**` or `supabase/config.toml` reaches `origin/master` — so this happens automatically on the next `git push`, not on a separate manual step. No `SUPABASE_ACCESS_TOKEN` was available this session (closing that gap still requires one — see the note at the top of this doc).
-- **New finding (2026-07-13, discovered while validating the commerce migration):** the migration history is **not bootstrappable from a blank database.** `supabase/migrations/20260416000000_add_title_columns.sql` runs `ALTER TABLE titles ADD COLUMN …` and assumes `titles` already exists — it doesn't, unless `titles` was created out-of-band (e.g. directly in the Supabase dashboard) before migration tracking started on this project. Confirmed by running `supabase db start` against a fresh local Postgres with the full migration set: it fails at that file with `relation "titles" does not exist`. This is a **disaster-recovery gap** — if the live database were ever lost, replaying these migrations from zero would not rebuild it. Pre-existing, unrelated to the commerce work; not yet fixed. Recommend either a squashed baseline migration or an explicit "initial schema" migration capturing what's currently only in the live DB.
+- **New finding (2026-07-13, discovered while validating the commerce migration):** the migration history is **not bootstrappable from a blank database.** `supabase/migrations/20260416000000_add_title_columns.sql` runs `ALTER TABLE titles ADD COLUMN …` and assumes `titles` already exists — it doesn't, unless `titles` was created out-of-band (e.g. directly in the Supabase dashboard) before migration tracking started on this project. Confirmed by running `supabase db start` against a fresh local Postgres with the full migration set: it fails at that file with `relation "titles" does not exist`. This is a **disaster-recovery gap** — if the live database were ever lost, replaying these migrations from zero would not rebuild it. Pre-existing, unrelated to the commerce work; **not yet fixed** (needs a squashed baseline / "initial schema" migration; deferred as it's risky migration-history surgery best done as its own reviewed change).
+
+## Live advisor remediation (2026-07-13)
+
+Once the `SUPABASE_ACCESS_TOKEN` was configured, `get_advisors` was run against the live project. Findings and what was done. Two tracked migrations were authored and **validated end-to-end against an isolated local Postgres** (RLS behaviour, the search_path loop incl. pgvector exclusion, FK indexes, duplicate-index drops, idempotency) — **not yet applied to prod** (awaiting deploy approval).
+
+**Security (`get_advisors security`) — 2 ERROR, 137 WARN, 1 INFO:**
+
+| Finding | Count | Disposition |
+|---|---|---|
+| `rls_disabled_in_public` — `streaming_platforms`, `title_streaming_platforms` | 2 (ERROR) | **Fixed** in `20260713000001` — enable RLS + `public read` SELECT policy (mirrors `genres`). Confirmed live: anon had *effective INSERT* via default privileges (a real write hole); reads unchanged, writes now service-role-only. |
+| `function_search_path_mutable` — user functions with a role-mutable `search_path` | 45 | **Fixed** in `20260713000001` — self-scoping loop pins every non-extension public function to `search_path = public` (matches the 5 already-pinned siblings). pgvector functions excluded. |
+| `anon`/`authenticated_security_definer_function_executable` | 90 | Not a distinct fix — these are the same SECURITY DEFINER RPCs; pinning their search_path (above) closes the exploitable surface. Their EXECUTE grants are intentional (they *are* the app's RPC API, each doing its own auth check). |
+| `rls_enabled_no_policy` — `device_auth_codes` | 1 (INFO) | **By design** (service-role-only device flow). BUT the source migration `20260416000005` defines `CREATE POLICY … FOR SELECT USING (true)` which would leak `access_token`/`refresh_token` to any anon if replayed. **Hardened** in `20260713000001` with a defensive `DROP POLICY IF EXISTS` (no-op today; protects against DR replay). |
+| `extension_in_public` — `vector` in `public` | 1 | **Deliberately not moved.** Relocating pgvector risks breaking the `embedding vector(1536)` column type + HNSW index + operators for ~0 benefit. Accepted. |
+| `auth_leaked_password_protection` disabled | 1 | **Needs a dashboard/API toggle** (Pro-plan Auth setting — Authentication → Providers → Email → "Leaked password protection", or `PATCH /v1/projects/{ref}/config/auth`). Not changed autonomously (auth-settings change). |
+
+**Performance (`get_advisors performance`) — 76 WARN, 50 INFO:**
+
+| Finding | Count | Disposition |
+|---|---|---|
+| `unindexed_foreign_keys` | 8 | **Fixed** in `20260713000002` — added a covering index per FK column. |
+| `duplicate_index` — redundant UNIQUE identical to the PK (`list_ratings`, `title_genres`) | 2 | **Fixed** in `20260713000002` — dropped the redundant UNIQUE (verified no FK references it; PK still enforces uniqueness). |
+| `auth_rls_initplan` — `auth.uid()` re-evaluated per-row | 53 | **Deferred.** Behaviour-preserving `(select auth.uid())` rewrite of 53 live policies; ~0 benefit on today's near-empty tables; wants a dedicated, individually-verified pass. |
+| `multiple_permissive_policies` | 21 | **Deferred.** Consolidation changes access logic; low current benefit. |
+| `unused_index` | 41 | **Deliberately not dropped.** `pg_stat` "unused" is unreliable on a young/low-traffic DB and several are deliberate feature indexes — dropping them risks degrading planned features. |
 
 ## Where reality diverges from the stated "assumed context"
 
