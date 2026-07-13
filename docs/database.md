@@ -222,6 +222,29 @@ Catalog of streaming services (Netflix, Prime, etc.).
 
 ---
 
+## Commerce (Phase P0 — added 2026-07-12)
+
+Physical-media commerce schema from `supabase/migrations/20260712000001_commerce_schema.sql`.
+First-party retail MVP with a marketplace-ready shape (`listings.seller_id` nullable = first-party).
+All money is stored in **integer cents**. Design rationale and phasing:
+`ADAM_DOCS/commerce-vertical-plan.md`.
+
+> **Status:** migration committed (`84b6be7`) but **not yet applied** to the live DB.
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `product_editions` | A physical edition of a `titles` row | `title_id → titles(id)`, `format` (dvd/bluray/4k/vhs/boxset), `edition_name`, `region`, `upc` |
+| `listings` | Something for sale | `edition_id`, `seller_id → auth.users` (**NULL = first-party**), `condition`, `price_cents`, `currency`, `quantity`, `status` |
+| `carts` / `cart_items` | Server-persisted cart (one per user) | `carts.user_id` (UNIQUE); `cart_items(cart_id, listing_id, quantity)` |
+| `orders` | An order (written server-side only, after payment) | `buyer_id`, `status`, `subtotal_cents`/`tax_cents`/`shipping_cents`/`total_cents`, `stripe_payment_intent_id`, `shipping_address_id` |
+| `order_items` | Line items, with title/edition text snapshotted | `order_id`, `listing_id`, `unit_price_cents`, `quantity`, `title_snapshot` |
+| `shipping_addresses` | Buyer addresses (CA) | `user_id`, `line1`, `city`, `province`, `postal_code` |
+| `tax_rates` | Combined CA sales-tax reference (13 provinces) | `province` (PK), `rate` (fraction) — **verify against CRA before go-live** |
+
+**RLS:** `product_editions` / `listings` (active) / `tax_rates` are public-read; `carts` / `cart_items` / `shipping_addresses` / `orders` / `order_items` are owner-only. **`orders` has no client write grant** — created by the service role after payment. Money math lives in `lib/commerce.ts` (unit-tested).
+
+---
+
 ## RPC Functions
 
 ### `match_titles`

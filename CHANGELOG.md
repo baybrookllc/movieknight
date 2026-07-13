@@ -32,6 +32,14 @@ First increment of the physical-media commerce build
 the Zustand + server-persisted cart. Phase P2 wires Stripe (needs your Stripe
 account + keys; see plan §10).
 
+**Docs**
+- Added `ADAM_DOCS/commerce-vertical-plan.md` (design + phasing).
+- Synced documentation to completed-vs-remaining state: an "Implementation
+  progress" section in `ADAM_DOCS/movieknight-audit-report.md` (roadmap items
+  marked ✅/🟡/⬜), Phase P0 marked done in the commerce plan, the new commerce
+  tables documented in `docs/database.md`, and a status pointer added to the
+  README.
+
 **Removed**
 - Deleted the stale `claude/elegant-agnesi-6a348c` branch (a strict ancestor of
   `master`, fully contained, no unique commits). `claude/sharp-mayer-5e02fe`

@@ -10,6 +10,37 @@
 
 **This is "needs targeted fixes + one vertical built from zero," not "rebuild the core."** The core the team actually built — Next.js 16 App Router with real SSR, a coherent Supabase schema, semantic search, social graph, trigger-warning system — is genuine, working, and architecturally sound. That's the good news, and it's a real surprise relative to the brief. The bad news is threefold: (1) the **physical-media marketplace — the one differentiator the product positioning is built on — does not exist in any form**, not even a stub; (2) there is **zero automated test coverage** feeding a pipeline that auto-deploys to production; and (3) there's a scattering of **shipped-but-broken features** (a streaming-platform filter that silently returns nothing, a "Clear all" button that never appears, keyboard navigation that steals your arrow keys) that indicate features are being marked "done" without being exercised end-to-end. None of that requires a rewrite. It requires closing the test gap, fixing the broken-in-production bugs, and deciding whether "physical media marketplace" is real or should be dropped from the positioning. The gap between the five-vertical pitch and the four-vertical (tracking/discovery/streaming/social) reality is the single most important thing on this list.
 
+## Implementation progress (updated 2026-07-12)
+
+Work done against this roadmap since the audit. Seven commits on `master` (none pushed yet). Legend: ✅ done · 🟡 partial · ⬜ not started.
+
+### Fix now — ✅ complete
+| Item | Status | Where |
+|---|---|---|
+| 1. Streaming-platform filter | ✅ Hidden (always returned zero; pipeline is a milestone item) | v6.6 `ff3031a` |
+| 2. Browse "Clear all" button | ✅ Fixed (precedence + boolean) | v6.6 `ff3031a` |
+| 3. `robots.txt` + `sitemap.xml` | ✅ Added (`app/robots.ts`, `app/sitemap.ts`) | v6.6 `ff3031a` |
+| 4. Test harness + smoke tests | 🟡 Vitest harness + 29 unit tests + CI `test` job done; **Playwright e2e still pending** | v6.6 `ff3031a` |
+| 5. `lighthouse.yml` branches | ✅ Retargeted to `master` | v6.6 `ff3031a` |
+| 6. Arrow-key hijack | ✅ Fixed (guard + inner-anchor activation) | v6.6 `ff3031a` |
+
+### Next milestone — partial
+| Item | Status | Where |
+|---|---|---|
+| 7. Commerce vertical | 🟡 Plan written; **Phase P0 done** (schema + RLS + money math + tests). P1 (cart/catalog UI), P2 (Stripe), P3 (orders), P4 (marketplace) remain | `0d55c96`, `84b6be7` |
+| 8. Accessibility pass | 🟡 Keyboard reachability, focus ring, ARIA, AA contrast, skip link done; **full focus-trap + hover/focus parity remain** | v6.8 `c733de5` |
+| 9. `next/image` migration | ✅ Detail + feed posters migrated (visual QA on staging pending) | v6.7 `3d48d03` |
+| 10. `proxy.ts` matcher scoping | ✅ Done (verified) | v6.7 `3d48d03` |
+| 11. Error tracking (Sentry) | ⬜ Deferred by decision (documented gap) | — |
+| 12. Branch reconciliation + rollback | 🟡 Dead `elegant-agnesi` deleted; `sharp-mayer` left per decision; **rollback/down-migration story still not defined** | — |
+
+### Later — not started
+⬜ 13. Unify product naming · ⬜ 14. Redact `debug-logger` PII · ⬜ 15. Delete dead code (`cors.ts`, `cron/health-check`) · ⬜ 16. `tv-auth` IP order + rate-limiter alerting · 🟡 17. Version tags (docs refreshed each commit; **no git tags yet**) · ⬜ 18. 39 `any` + `npm audit fix`
+
+### Also outstanding
+- The **project-wide `npm run lint` failure (~1,589 errors)** — mostly `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout and `mcp-server/dist` build output being linted. The CI `lint` job is red independently of the above; `build` and the new `test` job pass. (relates to items 15/18)
+- The **commerce migration is committed but not applied** — it auto-applies to prod on push to `master`; validate with a `SUPABASE_ACCESS_TOKEN` (also closes this audit's known gap) before pushing.
+
 ## Where reality diverges from the stated "assumed context"
 
 The audit brief's assumptions were mostly wrong — stated here because the brief explicitly asked:

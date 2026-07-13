@@ -4,7 +4,14 @@
 
 **Live:** https://movieknight.ca  
 **Current Version:** v6.8 (Jul 12, 2026 · 22:10 EDT)  
-**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit tests (Vitest) · WCAG-AA keyboard/contrast pass
+**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit tests (Vitest) · WCAG-AA keyboard/contrast pass  
+**In progress:** Physical-media commerce vertical — Phase P0 (schema) done, UI pending.
+
+> **Where things stand:** a full codebase audit and the completed/remaining
+> roadmap live in [`ADAM_DOCS/movieknight-audit-report.md`](ADAM_DOCS/movieknight-audit-report.md)
+> (see "Implementation progress"). The commerce build plan is in
+> [`ADAM_DOCS/commerce-vertical-plan.md`](ADAM_DOCS/commerce-vertical-plan.md).
+> Recent changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
