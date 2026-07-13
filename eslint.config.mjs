@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Nested checkouts / build output that aren't part of this app's source:
+    ".claude/worktrees/**",
+    "mcp-server/dist/**",
   ]),
 ]);
 

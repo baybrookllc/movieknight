@@ -1,5 +1,5 @@
 // ============================================================
-//  CineStream — Delete Account Edge Function
+//  MovieKnight — Delete Account Edge Function
 //  Verifies the user's JWT, wipes all their data, then removes
 //  their auth record.  Must be called with the user's own Bearer
 //  token (anon-key client, not service role).

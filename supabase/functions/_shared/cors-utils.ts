@@ -1,4 +1,4 @@
-// Shared CORS utilities for all StreamSocial edge functions.
+// Shared CORS utilities for all MovieKnight edge functions.
 // Import: import { makeCors, corsHeaders } from "../_shared/cors-utils.ts";
 
 export const ALLOWED_ORIGINS = new Set([

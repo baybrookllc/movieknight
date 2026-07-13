@@ -18,11 +18,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'CineStream — AI-Powered Movie & TV Discovery',
+  title: 'MovieKnight — AI-Powered Movie & TV Discovery',
   description: 'Discover movies and TV shows with AI-powered semantic search, track what you watch, and see what friends are into.',
   manifest: '/manifest.json',
   openGraph: {
-    title: 'CineStream',
+    title: 'MovieKnight',
     description: 'AI-powered movie & TV discovery with semantic search and social features.',
     type: 'website',
   },

@@ -1,7 +1,7 @@
 {
-  "name": "streamsocial-mcp",
+  "name": "movieknight-mcp",
   "version": "1.0.0",
-  "description": "Custom MCP server for StreamSocial — app-specific tools for development and operations",
+  "description": "Custom MCP server for MovieKnight — app-specific tools for development and operations",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -1,4 +1,4 @@
-// StreamSocial — Generate Embedding Edge Function
+// MovieKnight — Generate Embedding Edge Function
 // Generates and stores an OpenAI vector embedding for a single title or a batch of titles.
 //
 // POST /generate-embedding

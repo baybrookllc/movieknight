@@ -1,6 +1,6 @@
-# StreamSocial MCP Server
+# MovieKnight MCP Server
 
-Custom MCP server exposing app-specific tools for development and operations. Use this with Claude Code to query, debug, and manage your StreamSocial app directly from chat.
+Custom MCP server exposing app-specific tools for development and operations. Use this with Claude Code to query, debug, and manage your MovieKnight app directly from chat.
 
 ## Tools
 

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to StreamSocial are documented in this file.
+All notable changes to MovieKnight are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -8,10 +8,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧹 Remediation Session 1 — quick wins (v6.11, 2026-07-13)
+
+First session of the post-audit remediation plan (deferred DB items +
+pre-existing gaps). Re-checked the live DB and repo directly rather than
+trusting the audit doc's numbers — several had grown or shrunk since
+2026-07-12 (commerce P0 added tables/policies; the lint count turned out to
+be 97% one config issue, not a real backlog).
+
+**Fixed**
+- **`npm run lint`: 1,589 → 50 errors.** `eslint.config.mjs` was overriding
+  `eslint-config-next`'s default ignores and had stopped excluding nested
+  checkouts/build output — it was linting `.claude/worktrees/sharp-mayer-5e02fe/**`
+  (a full checked-out branch copy) as if it were app source. Added
+  `.claude/worktrees/**` and `mcp-server/dist/**` to `globalIgnores`. Real
+  remaining errors: 31 in app source, 19 in `mcp-server/src` (left for a later
+  session — see punch list below).
+- Deleted dead code: `supabase/functions/_shared/cors.ts` (0 importers,
+  superseded by `cors-utils.ts`) and `app/api/cron/health-check/route.ts`
+  (dead — the workflow calls the edge function directly).
+- Removed the orphaned `.claude/worktrees/elegant-agnesi-6a348c/` directory —
+  not a registered git worktree (`git worktree list` didn't show it), just a
+  stray folder left over from the already-deleted branch.
+- **Unified product naming to "MovieKnight"** — cosmetic pass only:
+  `package.json`/`package-lock.json` name, README, all `docs/*.md` headers,
+  in-app page titles/metadata (`app/layout.tsx`, title-detail page, signup
+  copy), `manifest.json`, `AppFooter`, the Claude system prompt, `mcp-server`
+  package/README/tool descriptions, and Supabase edge-function comment
+  headers + email display copy. **Deliberately left untouched:** the live
+  Vercel project name/domain (`cinestream-app-lake.vercel.app` — referenced in
+  CORS allowlists, TV-auth redirects, and email links), the webOS app bundle
+  ID (`app.cinestream.tv`), and the `.mcp.json` `"streamsocial"` server config
+  key. Those are load-bearing infra/config identifiers, not display text — a
+  real rename needs a coordinated domain migration, scoped separately.
+- Refreshed the stale `titles` schema table in `docs/database.md` — added 11
+  undocumented live columns (`budget`, `revenue`, `studios`, `directors`,
+  `writers`, `spoken_languages`, `awards_json`, `watch_providers_json`,
+  `theatrical_ca`, `theatrical_us`, `trailers_json`) and 3 undocumented
+  indexes/constraints (`idx_titles_tmdb_id`, `idx_titles_fts_en`,
+  `titles_tmdb_id_media_type_key`), verified directly against
+  `information_schema`/`pg_indexes` on the live project.
+- Tagged releases **v6.1–v6.10** locally against their commits (git history
+  had zero tags despite `lib/version.ts` tracking versions since v5.5).
+  Skipped the pre-v6.1 history — several older bumps had ambiguous/duplicate
+  commits for the same version string, not worth guessing. **Not yet pushed
+  to origin** — pushing tags is a shared-state action, confirm before I do.
+
+**Verified:** `npm test` (29/29 pass), `npm run build` (clean after clearing a
+stale `.next/dev/types/` cache that still referenced the deleted route), and
+the running dev server — confirmed page title, `/manifest.json`, and footer
+all read "MovieKnight" in the browser.
+
 ### 📋 Outstanding (logged 2026-07-13, end of session; updated same day)
 
-Everything safe-to-fix and within Claude's authority from this session's work
-is fixed, deployed to production, and re-verified. What's left:
+Everything safe-to-fix and within Claude's authority from the 2026-07-13
+audit-remediation session is fixed, deployed to production, and re-verified.
+What's left, after Session 1 above:
 
 **Blocked on you — ✅ both resolved 2026-07-13 (user completed, walked through
 step-by-step):**
@@ -24,21 +76,27 @@ step-by-step):**
   `gh secret list`. `deploy-migrations.yml` will now auto-deploy migrations on
   push instead of skipping gracefully.
 
-**Deliberately deferred** (degrade-risk or needs its own reviewed pass —
-rationale in `ADAM_DOCS/movieknight-audit-report.md` → "Outstanding as of
-2026-07-13"): moving the `vector` extension out of `public`; rewriting 53 RLS
-policies for the `auth_rls_initplan` perf finding; consolidating 21
-`multiple_permissive_policies` findings; dropping up to 41 `unused_index`
-findings; the full migration-history bootstrap-gap baseline (the deploy-
-blocking symptom — a `20260515` naming collision — is fixed; the underlying
-from-zero-replay gap remains).
+**Deliberately deferred DB items** (each gets its own reviewed pass, per
+`C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`): moving the `vector`
+extension out of `public` (0.8.0, relocatable, single-table blast radius —
+lower risk than originally assumed); rewriting the `auth_rls_initplan` perf
+finding (61 policies across 27 tables live now, not 53 — grew with commerce
+P0); consolidating `multiple_permissive_policies` (21 advisor rows but only 2
+tables — `list_members` and `messages` — already root-caused); dropping
+`unused_index` findings (59 live now, not 41 — mostly on tables too young for
+`pg_stat` to mean anything, recommend a 60-90 day recheck instead of acting
+now); the migration-history bootstrap-gap baseline (deploy-blocking symptom
+fixed; from-zero-replay gap remains).
 
-**Pre-existing, untouched this session:** Playwright e2e tests, accessibility
+**Pre-existing, not yet touched:** Playwright e2e tests, accessibility
 focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch
-decision + rollback/down-migration story, product-naming unification,
-`debug-logger` PII redaction, dead-code deletion, `tv-auth` rate-limiter
-alerting, git tags, 39 `any` types, the `npm run lint` failure (~1,589 errors),
-and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not started).
+decision + rollback/down-migration story, `debug-logger` PII redaction,
+`tv-auth` rate-limiter alerting, the remaining ~50 real lint errors + `any`
+types, and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not
+started). The untracked third-party `gemini_feedbac_05242026.md` at repo root
+(cross-referenced by `movieknight-audit-report.md`) has been moved into
+`ADAM_DOCS/gemini_feedback_05242026.md` (typo in the old filename fixed) and
+committed.
 
 ### 🔒 Live Supabase advisor remediation (v6.9)
 

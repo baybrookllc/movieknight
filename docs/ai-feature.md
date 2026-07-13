@@ -1,4 +1,4 @@
-# StreamSocial AI Feature — Ask Claude
+# MovieKnight AI Feature — Ask Claude
 
 An in-app AI assistant powered by Claude. Helps users with personalized recommendations, taste analysis, and answering questions about titles.
 

@@ -1,4 +1,4 @@
-// Shared utilities for CineStream Next.js app
+// Shared utilities for MovieKnight Next.js app
 
 export const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_BACKDROP = 'https://image.tmdb.org/t/p/w1280';

@@ -1,4 +1,4 @@
-// StreamSocial — Semantic Search Edge Function
+// MovieKnight — Semantic Search Edge Function
 // Converts a natural language query into a vector and returns ranked title matches.
 //
 // GET ?query=mind-bending sci-fi thriller&limit=10&media_type=movie

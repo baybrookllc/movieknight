@@ -1,7 +1,7 @@
 {
-  "name": "cinestream",
+  "name": "movieknight",
   "version": "2.0.0",
-  "description": "CineStream — AI-powered movie and TV discovery platform with semantic search and social features",
+  "description": "MovieKnight — AI-powered movie and TV discovery platform with semantic search and social features",
   "private": true,
   "scripts": {
     "dev": "next dev",

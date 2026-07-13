@@ -1,4 +1,4 @@
-# StreamSocial
+# MovieKnight
 
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 

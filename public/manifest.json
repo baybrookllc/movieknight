@@ -1,6 +1,6 @@
 {
-  "name": "CineStream",
-  "short_name": "CineStream",
+  "name": "MovieKnight",
+  "short_name": "MovieKnight",
   "description": "AI-powered movie & TV discovery with semantic search and social features",
   "start_url": "/home",
   "display": "standalone",

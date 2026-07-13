@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * StreamSocial MCP Server
+ * MovieKnight MCP Server
  *
  * Exposes app-specific tools for development and operations:
  * - app_health: Overall health snapshot (DB, embeddings, edge functions)
@@ -29,7 +29,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUP
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error("[streamsocial-mcp] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars");
+  console.error("[movieknight-mcp] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars");
   process.exit(1);
 }
 
@@ -42,7 +42,7 @@ const TOOLS = [
   {
     name: "app_health",
     description:
-      "Returns a comprehensive health snapshot of StreamSocial: total titles, embedding coverage, recent activity, user counts. Use this to quickly assess system status.",
+      "Returns a comprehensive health snapshot of MovieKnight: total titles, embedding coverage, recent activity, user counts. Use this to quickly assess system status.",
     inputSchema: {
       type: "object",
       properties: {},

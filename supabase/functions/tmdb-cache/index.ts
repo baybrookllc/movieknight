@@ -1,5 +1,5 @@
 // ============================================================
-//  StreamSocial — TMDB Cache Edge Function
+//  MovieKnight — TMDB Cache Edge Function
 //  File: supabase/functions/tmdb-cache/index.ts
 //
 //  HOW IT WORKS:
@@ -519,7 +519,7 @@ async function handleAwards(
   const SPARQL = "https://query.wikidata.org/sparql";
   const headers = {
     "Accept": "application/sparql-results+json",
-    "User-Agent": "CineStream/1.0 (https://github.com/streamsocial)",
+    "User-Agent": "MovieKnight/1.0 (https://movieknight.ca)",
   };
 
   function buildQuery(prop: string) {

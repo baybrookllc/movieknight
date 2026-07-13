@@ -1,4 +1,4 @@
-# StreamSocial — Architecture Overview
+# MovieKnight — Architecture Overview
 
 ## System Architecture
 

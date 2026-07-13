@@ -1,5 +1,5 @@
 // ============================================================
-//  StreamSocial — TV Seasons Edge Function
+//  MovieKnight — TV Seasons Edge Function
 //  File: supabase/functions/tv-seasons/index.ts
 //
 //  HOW IT WORKS:

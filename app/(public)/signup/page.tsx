@@ -84,7 +84,7 @@ export default function SignupPage() {
           Create account
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 32 }}>
-          Join CineStream to track and discover movies & TV
+          Join MovieKnight to track and discover movies & TV
         </p>
 
         <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

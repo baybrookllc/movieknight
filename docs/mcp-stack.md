@@ -1,4 +1,4 @@
-# StreamSocial MCP Stack
+# MovieKnight MCP Stack
 
 This project uses **Model Context Protocol (MCP) servers** to let Claude Code understand and interact with the running infrastructure directly. With these set up, every dev session in this project becomes faster — Claude can query the DB, check deployments, and trigger app-specific operations without asking you to copy-paste.
 
@@ -28,7 +28,7 @@ Provides Claude access to Vercel deployments.
 - Inspect environment variables (names only, not values)
 - View project configuration
 
-### 3. StreamSocial MCP (Custom, `mcp-server/`)
+### 3. MovieKnight MCP (Custom, `mcp-server/`)
 
 App-specific tools tailored to this codebase.
 
@@ -52,12 +52,12 @@ App-specific tools tailored to this codebase.
 #### Supabase Personal Access Token (PAT)
 1. Go to https://supabase.com/dashboard/account/tokens
 2. Click "Generate new token"
-3. Name: `StreamSocial MCP` (or similar)
+3. Name: `MovieKnight MCP` (or similar)
 4. Copy the token
 
 #### Already configured (no action needed):
 - Vercel MCP — uses your existing Vercel login
-- StreamSocial MCP — uses your Supabase service role key
+- MovieKnight MCP — uses your Supabase service role key
 
 ### Step 2: Add to `.env.local`
 
@@ -65,7 +65,7 @@ App-specific tools tailored to this codebase.
 # Supabase MCP authentication
 SUPABASE_ACCESS_TOKEN=sbp_...
 
-# StreamSocial MCP (service role key — bypasses RLS)
+# MovieKnight MCP (service role key — bypasses RLS)
 # Get from: Supabase Dashboard → Project Settings → API → service_role key
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
 ```
@@ -138,7 +138,7 @@ Claude reads `.mcp.json` on startup. Restart your session to pick up the configu
 ## Security Notes
 
 - **Supabase MCP** runs in **read-only mode** by default. No mutations possible.
-- **StreamSocial MCP** has **mutation capabilities** (seed_titles, backfill_embeddings) but uses the service role key locally — never expose this key.
+- **MovieKnight MCP** has **mutation capabilities** (seed_titles, backfill_embeddings) but uses the service role key locally — never expose this key.
 - **Vercel MCP** can read deployment logs but not modify production state without explicit confirmation.
 
 All three servers run **locally on your machine** — no data leaves your network except for the standard API calls Claude makes to Supabase and Vercel that you'd make anyway.
@@ -167,7 +167,7 @@ If you don't see Claude calling the tools, double-check:
 
 ## Extending the Custom MCP
 
-To add a new tool to the StreamSocial MCP:
+To add a new tool to the MovieKnight MCP:
 
 1. Edit `mcp-server/src/index.ts`
 2. Add a tool definition to the `TOOLS` array

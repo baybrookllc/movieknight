@@ -1,5 +1,5 @@
 // ============================================================
-//  CineStream — TV Device Auth Edge Function
+//  MovieKnight — TV Device Auth Edge Function
 //
 //  Flow:
 //  1. TV calls POST ?action=create  → gets { code, qr_url }

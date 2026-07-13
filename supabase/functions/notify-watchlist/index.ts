@@ -17,9 +17,9 @@ const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const RESEND_KEY    = Deno.env.get('RESEND_API_KEY')!;
 const NOTIFY_SECRET = Deno.env.get('NOTIFY_SECRET') ?? '';
-// Set FROM_EMAIL via: supabase secrets set FROM_EMAIL="CineStream <your@verified-domain.com>"
+// Set FROM_EMAIL via: supabase secrets set FROM_EMAIL="MovieKnight <your@verified-domain.com>"
 // Until a verified domain is configured, Resend only delivers to the Resend account owner's email.
-const FROM_EMAIL = Deno.env.get('FROM_EMAIL') ?? 'CineStream <onboarding@resend.dev>';
+const FROM_EMAIL = Deno.env.get('FROM_EMAIL') ?? 'MovieKnight <onboarding@resend.dev>';
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -224,14 +224,14 @@ async function sendDigestEmail(
         <tr><td style="padding:32px 0">
           <a href="https://cinestream-app-lake.vercel.app/v2"
              style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#4158D0,#C850C0,#FF2E63);color:#fff;font-size:14px;font-weight:700;text-decoration:none;border-radius:99px">
-            Open CineStream
+            Open MovieKnight
           </a>
         </td></tr>
 
         <!-- Footer -->
         <tr><td style="padding-top:24px;border-top:1px solid #1e1e2e">
           <p style="margin:0;font-size:11px;color:#374151;line-height:1.6">
-            You're receiving this because you enabled weekly digests in CineStream.<br>
+            You're receiving this because you enabled weekly digests in MovieKnight.<br>
             <a href="https://cinestream-app-lake.vercel.app/v2" style="color:#6b7280">Manage preferences</a>
           </p>
         </td></tr>

@@ -25,7 +25,9 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 - [ ] Drop up to 41 `unused_index` findings — `pg_stat` "unused" is unreliable on a young/low-traffic DB; several are deliberate feature indexes. Risk of removing something intentional.
 - [ ] **Migration-history bootstrap-gap baseline.** The deploy-blocking *symptom* (the `20260515` naming collision) is fixed, but the underlying gap remains: `20260416000000_add_title_columns.sql` assumes `titles` already exists (created out-of-band before migration tracking started), so replaying the full history from zero still fails. A real disaster-recovery risk. Needs a squashed baseline / "initial schema" migration as its own reviewed change.
 
-**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress" and unchanged this session): Playwright e2e tests, accessibility focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, product-naming unification, `debug-logger` PII redaction, dead-code deletion, `tv-auth` rate-limiter alerting, git tags, 39 `any` types, the `npm run lint` failure (~1,589 errors), and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+**Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, accessibility focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting, remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
+
+> **Update 2026-07-13 (remediation Session 1 — see `CHANGELOG.md` "Remediation Session 1"):** product-naming unification (cosmetic scope — display strings only, not the Vercel domain or webOS bundle ID), git tags (v6.1–v6.10, not yet pushed to origin as of this writing), `cors.ts`/`cron/health-check` dead-code deletion, and the `npm run lint` failure are now **done**. The lint failure turned out to be 97% one `eslint.config.mjs` ignore-pattern bug (linting a nested branch checkout as app source), not a real 1,589-error backlog — real remaining count is ~50. Full remediation plan for everything still open: `C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`.
 
 ## Implementation progress (updated 2026-07-13)
 
@@ -52,10 +54,10 @@ Work done against this roadmap since the audit. Ten commits on `master`, all pus
 | 12. Branch reconciliation + rollback | 🟡 Dead `elegant-agnesi` deleted; `sharp-mayer` left per decision; **rollback/down-migration story still not defined** | — |
 
 ### Later — not started
-⬜ 13. Unify product naming · ⬜ 14. Redact `debug-logger` PII · ⬜ 15. Delete dead code (`cors.ts`, `cron/health-check`) · ⬜ 16. `tv-auth` IP order + rate-limiter alerting · 🟡 17. Version tags (docs refreshed each commit; **no git tags yet**) · ⬜ 18. 39 `any` + `npm audit fix`
+✅ 13. Unify product naming (cosmetic scope; Vercel domain + webOS bundle ID deliberately excluded) · ⬜ 14. Redact `debug-logger` PII · 🟡 15. Delete dead code (`cors.ts` ✅, `cron/health-check` ✅; `CircuitBreaker`-in-TMDB-path decision still open) · ⬜ 16. `tv-auth` IP order + rate-limiter alerting · ✅ 17. Version tags (v6.1–v6.10 tagged 2026-07-13; pre-v6.1 history skipped, ambiguous duplicate bumps) · 🟡 18. `npm run lint` failure fixed (1,589 → 50, mostly an eslint ignore-pattern bug); real `any` types still open
 
 ### Also outstanding
-- The **project-wide `npm run lint` failure (~1,589 errors)** — mostly `mcp-server/src` `any` usage plus the `.claude/worktrees/` duplicate checkout and `mcp-server/dist` build output being linted. The CI `lint` job is red independently of the above; `build` and the new `test` job pass. (relates to items 15/18)
+- ~~The **project-wide `npm run lint` failure (~1,589 errors)**~~ — **✅ resolved 2026-07-13.** 1,539 of the 1,589 (97%) were `eslint.config.mjs` linting `.claude/worktrees/sharp-mayer-5e02fe/**` (a full checked-out branch copy) as app source — it had overridden `eslint-config-next`'s default ignores without re-excluding nested checkouts/build output. Added `.claude/worktrees/**` + `mcp-server/dist/**` to `globalIgnores`. Real remaining count: 50 errors (31 app source, 19 `mcp-server/src`), tracked under item 18.
 - ~~The commerce migration is committed but not applied~~ — **✅ resolved 2026-07-13.** Applied to prod via `supabase db push` and verified live (8 tables, 13 tax rows). See "Live advisor remediation" below.
 - **Migration-history bootstrap gap (2026-07-13, discovered while validating the commerce migration) — partially resolved.** The migration history was **not bootstrappable from a blank database**: `supabase/migrations/20260416000000_add_title_columns.sql` assumes `titles` already exists (it was created out-of-band before migration tracking started), so replaying from zero failed at that file. This also turned out to be the exact cause of a second, deploy-blocking bug — a naming collision on `20260515` — which **is now fixed** (renamed + remote history reconciled; see "Live advisor remediation"). The broader gap (a from-zero replay still can't rebuild the `titles`-table-onward history) remains open — see "Outstanding as of 2026-07-13" above.
 
@@ -102,7 +104,7 @@ The audit brief's assumptions were mostly wrong — stated here because the brie
 | "Five product verticals compete for the same UI" | **Four exist** (tracking, discovery, streaming, social). The fifth (physical-media commerce) has **zero code**. It isn't competing for UI — it isn't there. |
 | Product identity | **Four different names** for one product: `package.json` → `cinestream`, `README.md` → "StreamSocial", app metadata → "CineStream", domain/branding → "MovieKnight" (movieknight.ca). Evidence of an incomplete rebrand. |
 
-A prior third-party audit (`gemini_feedbac_05242026.md`, Gemini CLI, 2026-05-24) exists. This audit corroborates its real findings (rate-limiter fail-open, hook-ordering issues, `debug-logger` PII risk) and **corrects two of its numbers**: "100+ `any` instances" is now **39**, and the `.in('id', [...])` URL-length risk is **not currently live** (all call sites are bounded). Where this audit goes further: the commerce vertical, the broken streaming filter, framework/rendering identity, testing, accessibility, and deployment/rollback.
+A prior third-party audit (`ADAM_DOCS/gemini_feedback_05242026.md`, Gemini CLI, 2026-05-24) exists. This audit corroborates its real findings (rate-limiter fail-open, hook-ordering issues, `debug-logger` PII risk) and **corrects two of its numbers**: "100+ `any` instances" is now **39**, and the `.in('id', [...])` URL-length risk is **not currently live** (all call sites are bounded). Where this audit goes further: the commerce vertical, the broken streaming filter, framework/rendering identity, testing, accessibility, and deployment/rollback.
 
 ---
 
@@ -216,11 +218,11 @@ Ordered by (impact × urgency) ÷ effort. Estimates are solo technical work, hou
 
 | # | Item | Effort | Done when |
 |---|---|---|---|
-| 13 | **Unify product naming** (§9) — pick one (MovieKnight) across `package.json`, README, app metadata. | 1-2 hrs | One name repo-wide. |
+| 13 | ~~**Unify product naming**~~ (§9) — pick one (MovieKnight) across `package.json`, README, app metadata. | 1-2 hrs | **✅ Done 2026-07-13** (cosmetic scope — display strings, docs, comments; the live Vercel project/domain and webOS bundle ID are load-bearing infra IDs, deliberately excluded, need a separate migration). |
 | 14 | **Redact `debug-logger` before persistence** (§6) — strip auth headers/tokens/emails before `/api/debug/ingest`. | 3 hrs | Known-sensitive patterns don't reach the DB; verified with a test log line. |
 | 15 | **Delete dead code** (§2, §6, §10) — unused `cors.ts`, `cron/health-check/route.ts`, and the `CircuitBreaker` import gap in the TMDB path (either wire it in or note why not). | 2 hrs | Dead files removed; `npx eslint` clean of the ineffective disable comments. |
 | 16 | **Fix `tv-auth` IP-header order + rate-limiter fail-open alerting** (§6) — match the safer shared helper; make the missing-Upstash path at least alert loudly. | 2 hrs | `tv-auth` prioritizes `cf-connecting-ip`; a missing-config rate-limiter state is observable. |
-| 17 | **Version tags + doc refresh** (§ intro, §2) — tag releases (`git tag v6.5`); refresh `docs/database.md` `titles` schema. | 2 hrs | Tags match `lib/version.ts`; schema doc lists all real columns. |
+| 17 | ~~**Version tags + doc refresh**~~ (§ intro, §2) — tag releases (`git tag v6.5`); refresh `docs/database.md` `titles` schema. | 2 hrs | **✅ Done 2026-07-13** — v6.1–v6.10 tagged (pre-v6.1 skipped, ambiguous history); `docs/database.md` now lists all 27 live `titles` columns and all 8 indexes/constraints, verified against `information_schema`/`pg_indexes`. |
 | 18 | **Address the 39 `any` + reachable `npm audit` fix** (§4, §6) — type the worst offenders; `npm audit fix` for `protobufjs`. | 3-4 hrs | `no-explicit-any` count trending down; 0 high advisories in prod deps. |
 
 ---

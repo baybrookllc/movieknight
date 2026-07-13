@@ -80,7 +80,7 @@ async function checkRateLimit(userId: string): Promise<boolean> {
   }
 }
 
-const SYSTEM_PROMPT = `You are a movie and TV recommendation assistant for StreamSocial, a tracking app. You help users understand titles, find similar content, and explore their taste.
+const SYSTEM_PROMPT = `You are a movie and TV recommendation assistant for MovieKnight, a tracking app. You help users understand titles, find similar content, and explore their taste.
 
 Guidelines:
 - Be concise (2-4 sentences for most responses, unless asked for a list)

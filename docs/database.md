@@ -1,4 +1,4 @@
-# StreamSocial — Database Reference
+# MovieKnight — Database Reference
 
 ## Connection Details
 
@@ -34,13 +34,27 @@ Core title catalog from TMDB.
 | `original_language` | text | YES | ISO 639-1 (e.g., `"en"`, `"fr"`, `"ko"`) |
 | `origin_country` | text | YES | ISO 3166-1 (e.g., `"US"`, `"CA"`, `"JP"`) |
 | `certification_ca` | text | YES | Canadian rating (e.g., `"PG"`, `"14A"`, `"18+"`) |
+| `budget` | bigint | YES | USD, from TMDB |
+| `revenue` | bigint | YES | USD, from TMDB |
+| `studios` | text[] | YES | Production companies |
+| `directors` | text[] | YES | |
+| `writers` | text[] | YES | |
+| `spoken_languages` | text[] | YES | ISO 639-1 codes |
+| `awards_json` | jsonb | YES | |
+| `watch_providers_json` | jsonb | YES | Raw TMDB watch-provider data — **not currently read by the UI** (see `title_streaming_platforms` below, which the browse filter actually uses) |
+| `theatrical_ca` | text | YES | Canadian theatrical release date |
+| `theatrical_us` | text | YES | US theatrical release date |
+| `trailers_json` | jsonb | YES | |
 
 **Indexes:**
 - `titles_pkey` — `id` (PK)
+- `titles_tmdb_id_media_type_key` — UNIQUE `(tmdb_id, media_type)`
+- `idx_titles_tmdb_id` — `tmdb_id`
 - `idx_titles_popularity` — `popularity DESC`
 - `idx_titles_vote_average` — `vote_average DESC`
 - `idx_titles_release_date` — `release_date DESC`
 - `idx_titles_feed_eligible` — partial on `vote_average DESC WHERE poster_path IS NOT NULL AND vote_average >= 6.0`
+- `idx_titles_fts_en` — GIN full-text index on `title || overview`
 
 ---
 

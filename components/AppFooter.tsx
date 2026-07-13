@@ -14,7 +14,7 @@ export default function AppFooter() {
       color: 'var(--text-dim)',
       background: 'var(--bg)',
     }}>
-      <span>StreamSocial</span>
+      <span>MovieKnight</span>
       <span style={{ fontFamily: 'monospace', letterSpacing: '0.03em' }}>
         {VERSION} · {BUILD_DATE}
       </span>

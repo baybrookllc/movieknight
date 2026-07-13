@@ -1,4 +1,4 @@
-// CineStream — TypeScript types derived from Supabase schema
+// MovieKnight — TypeScript types derived from Supabase schema
 
 export interface Title {
   id: string;                    // "movie:550" or "tv:1396"

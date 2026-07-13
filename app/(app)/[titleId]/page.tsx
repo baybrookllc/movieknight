@@ -42,11 +42,11 @@ export async function generateMetadata({
   const { titleId } = await params;
   const decodedId = decodeURIComponent(titleId);
   const data = await getTitle(decodedId);
-  if (!data) return { title: 'CineStream' };
+  if (!data) return { title: 'MovieKnight' };
   const poster = data.poster_path ? `${TMDB_IMG}${data.poster_path}` : undefined;
   return {
-    title: `${data.title} — CineStream`,
-    description: truncate(data.overview, 160) || `Watch and track ${data.title} on CineStream.`,
+    title: `${data.title} — MovieKnight`,
+    description: truncate(data.overview, 160) || `Watch and track ${data.title} on MovieKnight.`,
     openGraph: {
       title: data.title,
       description: truncate(data.overview, 160) || '',

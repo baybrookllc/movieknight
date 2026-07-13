@@ -1,4 +1,4 @@
-# StreamSocial — Edge Functions Reference
+# MovieKnight — Edge Functions Reference
 
 All edge functions are deployed on Supabase (Deno runtime) and accessible at:
 `https://nwvliipxqedueskhxdym.supabase.co/functions/v1/<function-name>`
