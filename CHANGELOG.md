@@ -8,6 +8,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🔐 Remediation Session 3 — RLS policy hygiene (v6.13, 2026-07-13)
+
+Fixes the two remaining performance-advisor findings from the deferred-DB-items
+bucket: `auth_rls_initplan` and `multiple_permissive_policies`. Ground truth
+was pulled fresh from `pg_policies`/`get_advisors` rather than trusting the
+plan doc's numbers — confirmed exactly 61 policies / 27 tables and 21 advisor
+rows / 2 tables, matching what was scoped.
+
+**Added**
+- **`supabase/migrations/20260713000005_rls_policy_hygiene.sql`**:
+  - **`auth_rls_initplan` (56 policies rewritten via `ALTER POLICY`):** every
+    policy calling `auth.uid()`/`auth.role()`/`auth.jwt()` directly in its
+    `USING`/`WITH CHECK` clause had Postgres re-evaluating that (stable, not
+    immutable) call once per row scanned. Wrapped each as
+    `(select auth.<fn>())` so the planner caches it once per statement
+    instead — Supabase's own documented fix, behavior-preserving by
+    construction. Used `ALTER POLICY` in place rather than drop+recreate so
+    there's no window with fewer policies on a table.
+  - **`multiple_permissive_policies` (21 advisor rows, only 2 tables
+    involved):** on `messages`, dropped 3 legacy policies
+    (`"users {read,send,update} own messages"`, role `authenticated`) that
+    were fully redundant with `msg_sel`/`msg_ins`/`msg_upd` (role `public`,
+    same qual, strictly broader role coverage). On `list_members`, dropped
+    `"Members can view own memberships"` (subsumed by `lm_select`) and
+    replaced `"Owners can manage members"` (was `FOR ALL`) with a new
+    UPDATE-only policy, `lm_update_by_owner` — the old policy overlapped
+    `lm_select`/`lm_insert`/`lm_delete` for SELECT/INSERT/DELETE, but was the
+    *only* policy granting owners UPDATE, so a narrower replacement keeps
+    that access while removing the redundant overlap.
+
+**Validated (isolated local Postgres, throwaway, same
+`public.ecr.aws/supabase/postgres:15.8.1.085` image used for Session 2):**
+full 43-file replay clean; post-replay `pg_policies` matches the intended set
+exactly (7 policies total across `messages`+`list_members`, down from 10).
+Beyond the structural check, ran 9 functional access-scenario tests
+simulating owner/member/receiver/anon/unrelated-third-party access via
+`SET ROLE` + `request.jwt.claim.sub` — confirmed every access path that
+worked before the migration (owner UPDATE on `list_members`, member SELECT,
+receiver SELECT/UPDATE on `messages`, anon/unrelated denial) still works
+identically after, and nothing newly succeeds that shouldn't.
+
+**Deployed:** `supabase db push`. Post-deploy `get_advisors(performance)`
+confirms both `auth_rls_initplan` and `multiple_permissive_policies` are now
+**0** (down from 61 and 21 rows respectively).
+
+⚠️ **New finding surfaced while re-running advisors (not part of this
+session's scope):** `duplicate_index` now flags 3 tables —
+`follows` (`idx_follows_following` / `idx_follows_following_id`),
+`list_members` (`idx_list_members_user` / `idx_list_members_user_id`), and
+`messages` (`idx_messages_receiver_unread` / `idx_messages_unread`) each have
+two byte-for-byte identical indexes. Likely cause: Session 2's index-fix
+migration created indexes under new names without checking for
+pre-existing, differently-named duplicates from the pre-tracking baseline.
+Low-risk, mechanical fix (drop one of each pair) — queued for Session 5
+alongside the broader index review rather than deployed here.
+
 ### 🗄️ Remediation Session 2 — migration-history baseline (v6.12, 2026-07-13)
 
 Closes the disaster-recovery gap flagged in the audit: a from-zero replay of
@@ -141,22 +197,24 @@ step-by-step):**
   `gh secret list`. `deploy-migrations.yml` will now auto-deploy migrations on
   push instead of skipping gracefully.
 
-**Deliberately deferred DB items** (each gets its own reviewed pass, per
-`C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`): moving the `vector`
-extension out of `public` (0.8.0, relocatable, single-table blast radius —
-lower risk than originally assumed); rewriting the `auth_rls_initplan` perf
-finding (61 policies across 27 tables live now, not 53 — grew with commerce
-P0); consolidating `multiple_permissive_policies` (21 advisor rows but only 2
-tables — `list_members` and `messages` — already root-caused); dropping
-`unused_index` findings (59 live now, not 41 — mostly on tables too young for
-`pg_stat` to mean anything, recommend a 60-90 day recheck instead of acting
-now).
+**Deliberately deferred DB items still open:** moving the `vector` extension
+out of `public` (0.8.0, relocatable, single-table blast radius — lower risk
+than originally assumed, Session 4); dropping `unused_index` findings (59
+live, mostly on tables too young for `pg_stat` to mean anything — recommend a
+60-90 day recheck instead of acting now, Session 5); the newly-surfaced
+`duplicate_index` WARN on 3 tables (`follows`, `list_members`, `messages` —
+see Session 3 above), queued alongside Session 5's index review.
 
 ~~The migration-history bootstrap-gap baseline~~ — **✅ resolved 2026-07-13**
-(Remediation Session 2, above): a from-zero replay of the full migration
-history now succeeds and reconstructs the live schema (verified table/column/
-policy/function parity). Found and fixed real prod drift along the way — see
+(Remediation Session 2): a from-zero replay of the full migration history now
+succeeds and reconstructs the live schema (verified table/column/policy/
+function parity). Found and fixed real prod drift along the way — see
 Session 2 for detail.
+
+~~`auth_rls_initplan` + `multiple_permissive_policies`~~ — **✅ resolved
+2026-07-13** (Remediation Session 3, above): 61 policies rewritten, 4
+redundant policies dropped, 1 narrower replacement added. Both advisor
+findings confirmed at 0 post-deploy.
 
 **Pre-existing, not yet touched:** Playwright e2e tests, accessibility
 focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch

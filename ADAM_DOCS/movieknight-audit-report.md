@@ -19,15 +19,17 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 - [x] **Add a `SUPABASE_DB_PASSWORD` GitHub Actions secret** — added via repo Settings → Secrets and variables → Actions (a first attempt saved it as `UPABASE_DB_PASSWORD` — missing leading "S" — caught via `gh secret list` and corrected). `deploy-migrations.yml` will now auto-deploy migrations on push instead of skipping gracefully.
 
 **Deliberately deferred (documented rationale — degrade-risk or needs its own reviewed pass, not a quick fix):**
-- [ ] Move the `vector` extension out of `public` schema — risks breaking the `embedding vector(1536)` column type, HNSW index, and operators for ~0 current benefit.
-- [ ] Rewrite 53 RLS policies from `auth.uid()` to `(select auth.uid())` (the `auth_rls_initplan` perf finding) — behavior-preserving but wants an individually-verified pass, not a bulk pass. ~0 benefit today on near-empty tables.
-- [ ] Consolidate 21 `multiple_permissive_policies` findings — changes access-control logic, needs case-by-case review.
-- [ ] Drop up to 41 `unused_index` findings — `pg_stat` "unused" is unreliable on a young/low-traffic DB; several are deliberate feature indexes. Risk of removing something intentional.
+- [ ] Move the `vector` extension out of `public` schema — risks breaking the `embedding vector(1536)` column type, HNSW index, and operators for ~0 current benefit. (Session 4)
+- [ ] Drop up to 59 `unused_index` findings — `pg_stat` "unused" is unreliable on a young/low-traffic DB; several are deliberate feature indexes. Risk of removing something intentional. Recommend a 60-90 day recheck instead of acting now. (Session 5)
+- [ ] New: 3 `duplicate_index` pairs surfaced by Session 3's advisor re-run (`follows`, `list_members`, `messages`) — queued alongside Session 5's index review.
 - [x] **Migration-history bootstrap-gap baseline — ✅ resolved 2026-07-13.** `20260401000000_baseline_schema.sql` reconstructs all 13 pre-tracking tables, the `vector` extension, 15 functions, and 3 triggers; a full 41-file replay from a blank database now succeeds and matches live. Detail: `CHANGELOG.md` → "Remediation Session 2".
+- [x] **Rewrite `auth_rls_initplan` + consolidate `multiple_permissive_policies` — ✅ resolved 2026-07-13.** 61 policies across 27 tables rewritten via `ALTER POLICY` to `(select auth.<fn>())`; 4 redundant policies dropped and 1 narrower replacement added on `messages`/`list_members`. Validated locally (structural + 9 functional access-scenario tests) before deploy. Both advisor findings confirmed at 0 post-deploy. Detail: `CHANGELOG.md` → "Remediation Session 3".
 
 **Pre-existing, unrelated to this session's Supabase-token work** (tracked below in "Implementation progress"): Playwright e2e tests, accessibility focus-trap/hover-parity, Sentry error tracking, the `sharp-mayer` branch decision + rollback/down-migration story, `debug-logger` PII redaction, the `CircuitBreaker`-in-TMDB-path decision, `tv-auth` rate-limiter alerting, remaining `any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is now unblocked).
 
 > **Update 2026-07-13 (remediation Session 1 — see `CHANGELOG.md` "Remediation Session 1"):** product-naming unification (cosmetic scope — display strings only, not the Vercel domain or webOS bundle ID), git tags (v6.1–v6.10, not yet pushed to origin as of this writing), `cors.ts`/`cron/health-check` dead-code deletion, and the `npm run lint` failure are now **done**. The lint failure turned out to be 97% one `eslint.config.mjs` ignore-pattern bug (linting a nested branch checkout as app source), not a real 1,589-error backlog — real remaining count is ~50. Full remediation plan for everything still open: `C:\Users\adamm\.claude\plans\keen-sniffing-nygaard.md`.
+>
+> **Update 2026-07-13 (remediation Session 3 — see `CHANGELOG.md` "Remediation Session 3"):** `auth_rls_initplan` and `multiple_permissive_policies` are both resolved and confirmed at 0 findings. Ground truth re-checked directly against `pg_policies`/`get_advisors` rather than the numbers below (which reflect 2026-07-12 and are now stale for these two rows — see the "Live advisor remediation" table just below for the as-deferred snapshot).
 
 ## Implementation progress (updated 2026-07-13)
 
@@ -88,9 +90,10 @@ Once the `SUPABASE_ACCESS_TOKEN` was configured, `get_advisors` was run against 
 |---|---|---|
 | `unindexed_foreign_keys` | 8 (+4) | **Fixed & deployed** — a covering index per FK column in `20260713000002`; 4 more commerce FKs surfaced post-deploy fixed in `20260713000003`. Advisor now reports 0. |
 | `duplicate_index` — redundant UNIQUE identical to the PK (`list_ratings`, `title_genres`) | 2 | **Fixed & deployed** in `20260713000002` — dropped the redundant UNIQUE (verified no FK references it; PK still enforces uniqueness). Advisor now reports 0. |
-| `auth_rls_initplan` — `auth.uid()` re-evaluated per-row | 53 | **Deferred.** Behaviour-preserving `(select auth.uid())` rewrite of 53 live policies; ~0 benefit on today's near-empty tables; wants a dedicated, individually-verified pass. |
-| `multiple_permissive_policies` | 21 | **Deferred.** Consolidation changes access logic; low current benefit. |
-| `unused_index` | 41 | **Deliberately not dropped.** `pg_stat` "unused" is unreliable on a young/low-traffic DB and several are deliberate feature indexes — dropping them risks degrading planned features. |
+| `duplicate_index` — new pairs surfaced 2026-07-13 post-Session-3 (`follows`, `list_members`, `messages`) | 3 | **New, not yet fixed.** Byte-for-byte identical index pairs, likely from Session 2's index-fix migration duplicating pre-tracking indexes under new names. Queued for Session 5. |
+| `auth_rls_initplan` — `auth.uid()` re-evaluated per-row | 53→61 (grew with commerce P0) | **✅ Fixed & deployed 2026-07-13 (Session 3).** All 61 live policies rewritten via `ALTER POLICY` to `(select auth.<fn>())`. Validated locally (structural + 9 functional access-scenario tests), deployed, advisor confirms 0. |
+| `multiple_permissive_policies` | 21 (unchanged) | **✅ Fixed & deployed 2026-07-13 (Session 3).** Only 2 tables involved (`messages`, `list_members`) — 4 redundant policies dropped, 1 narrower UPDATE-only replacement added. Advisor confirms 0. |
+| `unused_index` | 41→59 (grew with commerce P0) | **Deliberately not dropped.** `pg_stat` "unused" is unreliable on a young/low-traffic DB and several are deliberate feature indexes — dropping them risks degrading planned features. Recommend a 60-90 day recheck (Session 5). |
 
 ## Where reality diverges from the stated "assumed context"
 
