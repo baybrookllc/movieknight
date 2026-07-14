@@ -99,6 +99,21 @@ check against the verified live RPC shapes rather than a manual
 authenticated click-through (no test-account credentials available this
 session).
 
+**CI follow-up, same day:** fixing lint let the `build` job run for the
+first time — it had always been skipped while `lint-typecheck` was red
+(`needs: [lint-typecheck, test, e2e]`). That immediately surfaced a dormant
+`npm audit --audit-level=high` failure on the same `path-to-regexp` /
+`@vercel/config` finding Session 10 already investigated and deliberately
+left alone (build-time-only devDependency, never shipped to users; fixing it
+needs a breaking downgrade for zero production benefit). Not a regression —
+it was always going to fail, just never got the chance to run before.
+**Decision (confirmed with user):** lowered `ci.yml`'s audit gate from
+`--audit-level=high` to `--audit-level=critical`, so it still catches
+anything worse without hard-failing on this already-accepted risk. Verified
+locally (`npm audit --audit-level=critical` exits 0) and confirmed on GitHub:
+all four CI jobs (Lint & Type Check, Unit Tests, E2E Tests, Production
+Build) green end-to-end for the first time.
+
 ### 🎭 Remediation Session 6 — Playwright e2e + release tags (v6.20, 2026-07-14)
 
 Closes the last unbuilt item on the original audit's remediation punch list:

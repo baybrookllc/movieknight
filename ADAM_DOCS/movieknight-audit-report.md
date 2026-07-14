@@ -56,7 +56,7 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 >
 > **Update 2026-07-14 (code tidiness — see `CHANGELOG.md` "Code tidiness — fix all 31 pre-existing ESLint errors"):** all 31 errors flagged above are now resolved; `npm run lint` exits 0. Tracing the `any`-type fixes to their real data shapes (verified against the live database, not migration files) surfaced two real, previously-shipped bugs — `MessagesClient.tsx` reading conversation fields that don't exist, and the Profile page's "Genre DNA" section calling its RPC with the wrong parameter name and the wrong result shape — both fixed properly, not just typed around.
 
-## Implementation progress (updated 2026-07-13)
+## Implementation progress (updated 2026-07-14)
 
 Work done against this roadmap since the audit. Ten commits on `master`, all pushed and deployed. Legend: ✅ done · 🟡 partial · ⬜ not started.
 
@@ -80,8 +80,8 @@ Work done against this roadmap since the audit. Ten commits on `master`, all pus
 | 11. Error tracking (Sentry or equivalent) | ✅ Done via existing debug-logger/`error_logs` pipeline (no Sentry account existed; extended what was already there per user decision) | Session 8, v6.17 |
 | 12. Branch reconciliation + rollback | ✅ Dead `elegant-agnesi` deleted; `sharp-mayer` confirmed fully superseded and abandoned (worktree + local + remote); rollback runbook written and Tier 1 tested end-to-end | Session 9, v6.18 |
 
-### Later — not started
-✅ 13. Unify product naming (cosmetic scope; Vercel domain + webOS bundle ID deliberately excluded) · ⬜ 14. Redact `debug-logger` PII · 🟡 15. Delete dead code (`cors.ts` ✅, `cron/health-check` ✅; `CircuitBreaker`-in-TMDB-path decision still open) · ⬜ 16. `tv-auth` IP order + rate-limiter alerting · ✅ 17. Version tags (v6.1–v6.10 tagged 2026-07-13; pre-v6.1 history skipped, ambiguous duplicate bumps) · 🟡 18. `npm run lint` failure fixed (1,589 → 50, mostly an eslint ignore-pattern bug); real `any` types still open
+### Later — mostly complete
+✅ 13. Unify product naming (cosmetic scope; Vercel domain + webOS bundle ID deliberately excluded) · ✅ 14. Redact `debug-logger` PII (Session 10) · 🟡 15. Delete dead code (`cors.ts` ✅, `cron/health-check` ✅; `CircuitBreaker`-in-TMDB-path decision still open) · ✅ 16. `tv-auth` IP order + rate-limiter alerting (Session 10) · ✅ 17. Version tags (v6.1–v6.21 fully tagged and pushed) · ✅ 18. `npm run lint` — 0 errors (was 1,589 → 50 real → 31 after Session 10's partial pass → **0** as of the 2026-07-14 code-tidiness pass, which also surfaced and fixed 2 real bugs — see "Update 2026-07-14" below)
 
 ### Also outstanding
 - ~~The **project-wide `npm run lint` failure (~1,589 errors)**~~ — **✅ resolved 2026-07-13.** 1,539 of the 1,589 (97%) were `eslint.config.mjs` linting `.claude/worktrees/sharp-mayer-5e02fe/**` (a full checked-out branch copy) as app source — it had overridden `eslint-config-next`'s default ignores without re-excluding nested checkouts/build output. Added `.claude/worktrees/**` + `mcp-server/dist/**` to `globalIgnores`. Real remaining count: 50 errors (31 app source, 19 `mcp-server/src`), tracked under item 18.
@@ -251,7 +251,7 @@ Ordered by (impact × urgency) ÷ effort. Estimates are solo technical work, hou
 | 15 | **Delete dead code** (§2, §6, §10) — unused `cors.ts`, `cron/health-check/route.ts`, and the `CircuitBreaker` import gap in the TMDB path (either wire it in or note why not). | 2 hrs | Dead files removed; `npx eslint` clean of the ineffective disable comments. |
 | 16 | ~~**Fix `tv-auth` IP-header order + rate-limiter fail-open alerting**~~ (§6) — match the safer shared helper; make the missing-Upstash path at least alert loudly. | 2 hrs | **✅ Done 2026-07-13** — `tv-auth` now prioritizes `cf-connecting-ip`; separately, `_shared/rate-limit.ts`'s actual fail-open path (the one really "in front of paid OpenAI-embedding calls") now alerts via `logEdgeError`. |
 | 17 | ~~**Version tags + doc refresh**~~ (§ intro, §2) — tag releases (`git tag v6.5`); refresh `docs/database.md` `titles` schema. | 2 hrs | **✅ Done 2026-07-13** — v6.1–v6.10 tagged (pre-v6.1 skipped, ambiguous history); `docs/database.md` now lists all 27 live `titles` columns and all 8 indexes/constraints, verified against `information_schema`/`pg_indexes`. |
-| 18 | ~~**Address the 39 `any` + reachable `npm audit` fix**~~ (§4, §6) — type the worst offenders; `npm audit fix` for `protobufjs`. | 3-4 hrs | **✅ Done 2026-07-13** — worst file (`mcp-server/src/index.ts`, 19/39) fully typed; `protobufjs` (+ `dompurify`/`js-yaml` for free) resolved via `npm audit fix`, confirmed 0 remaining reachable advisories. |
+| 18 | ~~**Address the 39 `any` + reachable `npm audit` fix**~~ (§4, §6) — type the worst offenders; `npm audit fix` for `protobufjs`. | 3-4 hrs | **✅ Fully done 2026-07-14.** Session 10 (2026-07-13) typed the worst file (`mcp-server/src/index.ts`, 19/39) and resolved `protobufjs` via `npm audit fix`. The 2026-07-14 code-tidiness pass typed the remaining ~20 `any`s across 7 app files (plus 11 other lint errors of different kinds — 31 total, `npm run lint` now exits 0) — and in the process found and fixed 2 real, previously-shipped bugs the loose typing had been masking: a broken Messages conversation list (wrong field names) and a fully-broken Profile "Genre DNA" section (wrong RPC param + wrong result shape). Detail: `CHANGELOG.md` → "Code tidiness — fix all 31 pre-existing ESLint errors". |
 
 ---
 

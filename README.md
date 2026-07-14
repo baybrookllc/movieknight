@@ -3,7 +3,7 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.20 (Jul 14, 2026 · 08:29 EDT)  
+**Current Version:** v6.21 (Jul 14, 2026 · 11:23 EDT)  
 **Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit + e2e tests (Vitest + Playwright) · WCAG-AA keyboard/contrast pass  
 **In progress:** Physical-media commerce vertical — Phase P0 (schema) live on production; UI (P1) next.
 
