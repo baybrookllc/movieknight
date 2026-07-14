@@ -8,6 +8,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🌿 Remediation Session 9 — branch decision + rollback runbook (v6.18, 2026-07-13)
+
+**`sharp-mayer` branch — abandoned, fully cleaned up.** Investigated before
+deciding: compared each of its 7 commits (dated 2026-05-20, ~2 months
+stale) against current master. Every single fix it contained — the
+Supabase SSR-cookie `getAuthHeader()` fix, the SDK 2.45→2.106 bump, Umami/
+PostHog CSP `connect-src` entries, the infinite-loading-spinner guard, and
+the 70–99% match-score rescale — was already independently present in
+master via separate commits. Zero unique value left to rebase in.
+Confirmed the worktree had no uncommitted changes, then removed the
+worktree (`.claude/worktrees/sharp-mayer-5e02fe`), deleted the local
+branch, and deleted the remote branch
+(`origin/claude/sharp-mayer-5e02fe`). Noted for the record: the local
+branch tip (`ee07baa`) was 2 commits ahead of what had been pushed to
+origin (`57635ee`) — those 2 commits were never on GitHub at all, and
+both were confirmed-redundant per the diff above.
+
+**Added — `docs/rollback-runbook.md`**, a two-tier migration rollback
+runbook:
+- **Tier 1 (the common case): forward-fix migration** — write the inverse
+  migration, validate on a local Docker replica (same
+  `public.ecr.aws/supabase/postgres:15.8.1.085` pattern every migration
+  this project ships uses), deploy via `supabase db push`. **Actually
+  tested, not just described:** simulated a bad migration (an overly-strict
+  `CHECK` constraint on `profiles.username` that would deploy clean and
+  then break the first mixed-case username update), confirmed it broke
+  the expected operation, wrote and applied the rollback migration on the
+  same local container, confirmed the previously-failing update then
+  succeeded.
+- **Tier 2 (catastrophic data loss only): point-in-time restore** —
+  confirmed this project actually has PITR-capable physical backups via
+  `supabase backups list` (5 completed backups, 2026-07-07 through
+  2026-07-13) and documented the real `supabase backups restore
+  --timestamp <epoch>` command. **Deliberately not live-tested** — running
+  a real restore against production to "test" it would cause the exact
+  data loss and downtime the runbook warns about. Documented from the
+  actual CLI output/help text for this project, not generic advice, with
+  an explicit "confirm with the user before running" step given it's a
+  production-data-loss action.
+- Explicitly scoped out full down-migrations for all 40+ migration files
+  as a separate, larger project — Tier 1 already covers the realistic
+  recovery cases without that up-front investment.
+
 ### 🚨 Remediation Session 8 — error tracking (v6.17, 2026-07-13)
 
 Closes the "add error tracking (Sentry or equivalent)" roadmap item. No
@@ -489,14 +532,20 @@ pipeline (no new vendor) into error boundaries, all 4 API routes, and 6 of 10
 edge functions. Verified with a real deliberately-thrown error landing with
 a real stack trace.
 
-**Pre-existing, not yet touched:** Playwright e2e tests, the `sharp-mayer`
-branch decision + rollback/down-migration story, `debug-logger` PII
-redaction, `tv-auth` rate-limiter alerting (and its missing catch-all error
-handling, noted in Session 8), the remaining ~50 real lint errors + `any`
-types, and commerce Phases P1–P4 (P0 is done and live; P1 is unblocked, not
-started). The untracked third-party `gemini_feedbac_05242026.md` at repo
-root (cross-referenced by `movieknight-audit-report.md`) has been moved
-into
+~~The `sharp-mayer` branch decision + rollback/down-migration story~~ —
+**✅ resolved 2026-07-13** (Remediation Session 9, above): branch abandoned
+and fully cleaned up (worktree + local + remote), confirmed fully
+superseded by master first. `docs/rollback-runbook.md` added, with the
+primary (forward-fix migration) recovery path actually tested end-to-end
+locally.
+
+**Pre-existing, not yet touched:** Playwright e2e tests, `debug-logger`
+PII redaction, `tv-auth` rate-limiter alerting (and its missing catch-all
+error handling, noted in Session 8), the remaining ~50 real lint errors +
+`any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is
+unblocked, not started). The untracked third-party
+`gemini_feedbac_05242026.md` at repo root (cross-referenced by
+`movieknight-audit-report.md`) has been moved into
 `ADAM_DOCS/gemini_feedback_05242026.md` (typo in the old filename fixed) and
 committed.
 
