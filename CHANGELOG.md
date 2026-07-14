@@ -30,7 +30,10 @@ high-leverage tier that shipped; the larger structural refactors are queued (see
   utilities scaffolded but never wired into the app. (The live edge-function copy at
   `supabase/functions/_shared/circuit-breaker.ts` is untouched.)
 - Pruned unused `Conversation`/`Message` type imports in `lib/store.ts`.
-- (`lib/commerce.ts` left in place pending a product decision on the commerce vertical.)
+- `lib/commerce.ts` **kept** (not deleted) — it has no importers yet, but it is the
+  tested money-math foundation of the deployed commerce **P0** (schema live in prod via
+  migration `20260712000001_commerce_schema.sql`, commit `84b6be7`), to be consumed by the
+  not-yet-built P1 shop/cart. Forward-scaffolding, not dead code.
 
 **Changed — collapsed duplicated logic:**
 - Session-id generation: exported `getOrCreateSessionId()`/`randomId()` from
