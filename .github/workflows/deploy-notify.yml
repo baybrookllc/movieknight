@@ -27,7 +27,7 @@ jobs:
               `|---|---|`,
               `| **Environment** | \`${env}\` |`,
               `| **Commit** | \`${sha}\` |`,
-              `| **URL** | ${url ? \`[${url}](${url})\` : 'N/A'} |`,
+              `| **URL** | ${url ? `[${url}](${url})` : 'N/A'} |`,
               `| **Time** | ${new Date().toUTCString()} |`,
             ].join('\n');
 
