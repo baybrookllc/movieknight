@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.23, 2026-07-14)
+### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.24, 2026-07-14)
 
 First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
 replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
@@ -19,19 +19,37 @@ scaffold that was copy-pasted across ~14 components and pages.
   out-of-order responses and post-unmount updates (the ad-hoc versions did neither).
 - **`useAsyncAction(action, { onError, onSuccess })`** — imperative submit/click flows,
   exposing `{ run, loading, error, reset }`. Actions throw to signal failure.
-- **Migrated (3 of ~14):** `login` + `signup` pages (→ `useAsyncAction`) and
-  `NotificationsClient` (→ `useAsyncData`); behavior-preserving. The Notifications
+- **Migrated (4):** `login` + `signup` pages (→ `useAsyncAction`), and `NotificationsClient`
+  + `TrackerRow` (→ `useAsyncData`). Behavior-preserving except `TrackerRow`, where the
+  hook's cleaner semantics also **fix two latent bugs**: the logged-out "Sign in to track"
+  prompt is now reachable (it was previously stuck on a perpetual skeleton), and the brief
+  "empty tracker" flash during load is replaced by the loading skeleton. The Notifications
   Refresh button now calls the hook's `reload`.
 - The one intentional `set-state-in-effect` lint exception is now confined to this single
   reviewed utility instead of being scattered across every call site.
 
-Verified: `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `next
-build` green (24 routes). **Not yet exercised in a browser** (sandbox lacks live Supabase
-creds) — recommend an e2e/manual pass on auth + notifications before merge.
+Verified: `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `next build`
+green (24 routes) · **CI E2E (Playwright critical-path) green** on the first batch, which
+exercises the real auth + notifications flows the local sandbox can't (no live Supabase creds).
 
-**Remaining ~11 call sites** to migrate incrementally: `BrowseClient`, `FriendsClient`,
-`MessagesClient`, `HomeClient`, `TrackerRow`, `TriggerWarnings`, `SearchOverlay`,
-`AskClaude`, `AuthProvider`, `list/[id]`, `profile/[userId]`.
+**Scope refinement:** the audit's "~14 files" counts every component with a `loading`/`error`
+`useState`, but only the *read-only-after-load* and *imperative-action* shapes are clean
+`useAsyncData` / `useAsyncAction` swaps. Deeper reading shows several are **not** clean fits
+and are intentionally left as-is to avoid regressions:
+  - `MessagesClient` — calls its loader as a silent background refresh (send / receive /
+    open-thread / realtime); the hook's `reload` toggles `loading`, which would flash the
+    spinner over the list. Also has Realtime subscriptions + optimistic updates.
+  - `FriendsClient` — a tab-parameterized loader feeding five separate arrays behind one
+    `loading` flag, with cross-tab preloads; doesn't map to the hook's single-value model.
+  - `list/[id]` — `removeItem` mutates the loaded list optimistically; the hook owns its
+    `data` immutably (would need a `mutate` / `setData` extension).
+  - `AskClaude` — a `loading`+`error`+`answer`+`currentMode` quartet with a custom
+    network-error message; more than the clean action shape.
+Genuinely-clean remaining candidates (pending per-file review): `profile/[userId]`,
+`TriggerWarnings`, `SearchOverlay`. The large clients (`HomeClient`, `BrowseClient`,
+`AuthProvider`) are stateful enough that a data layer (SWR / react-query) or a `mutate`
+extension to `useAsyncData` is the right call — a deliberate design decision, not a
+mechanical swap.
 
 _Note: branched off `master`, so this does not include the v6.22 dead-code cleanup (open
 in a separate PR); `version.ts` / `CHANGELOG.md` will need trivial conflict resolution when
