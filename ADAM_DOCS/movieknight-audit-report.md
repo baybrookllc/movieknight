@@ -53,6 +53,8 @@ Everything **safe to fix and within Claude's authority** has been fixed, deploye
 > **Update 2026-07-13 (remediation Session 10 — see `CHANGELOG.md` "Remediation Session 10"):** PII redaction, `tv-auth` hardening, and the worst `any`-type offenders are resolved — see above. This closes out the original audit's full remediation punch list except Playwright e2e and commerce P1–P4, both pre-existing and unrelated to the audit-remediation arc.
 >
 > **Update 2026-07-14 (remediation Session 6 — see `CHANGELOG.md` "Remediation Session 6"):** Playwright e2e is now built (deterministic tier gates CI + opt-in live tier), the two v6.6 browse bugs have regression guards, releases v6.11–v6.19 are tagged, and the `unused_index` deferral is re-affirmed with its recheck still scheduled for 2026-09-26. **This closes the entire audit-remediation punch list.** The only remaining roadmap items are commerce Phases P1–P4 — net-new feature work, never part of the audit. (Separately noted: `npm run lint` still fails on ~31 pre-existing errors — 20 `any` + newer React-Compiler rules — untouched by this session and left for a dedicated lint pass.)
+>
+> **Update 2026-07-14 (code tidiness — see `CHANGELOG.md` "Code tidiness — fix all 31 pre-existing ESLint errors"):** all 31 errors flagged above are now resolved; `npm run lint` exits 0. Tracing the `any`-type fixes to their real data shapes (verified against the live database, not migration files) surfaced two real, previously-shipped bugs — `MessagesClient.tsx` reading conversation fields that don't exist, and the Profile page's "Genre DNA" section calling its RPC with the wrong parameter name and the wrong result shape — both fixed properly, not just typed around.
 
 ## Implementation progress (updated 2026-07-13)
 

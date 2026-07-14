@@ -8,6 +8,97 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧹 Code tidiness — fix all 31 pre-existing ESLint errors (v6.21, 2026-07-14)
+
+`npm run lint` exited 1 on 31 pre-existing errors (CI's `lint-typecheck` job
+was red, independent of the just-shipped e2e work). All 31 fixed; `npm run
+lint` now exits 0. Full breakdown of the 31, grouped by root cause:
+
+- **2× `no-require-imports`** — `.claude/hooks/eslint-fix.cjs` (a standalone
+  Node/CJS `PostToolUse` hook script, not app source). Added
+  `.claude/hooks/**` to `eslint.config.mjs`'s `globalIgnores`, same treatment
+  already given to `.claude/worktrees/**`.
+- **3× "declared before use"** (a newer `eslint-plugin-react-hooks` static
+  rule; confirmed this project does **not** have the React Compiler enabled,
+  so this was lint-hygiene only) — moved `loadList`
+  (`app/(app)/list/[id]/page.tsx`), `loadUserProfile`
+  (`components/AuthProvider.tsx`), and `fetchTriggersForResults`
+  (`components/BrowseClient.tsx`) above their call sites. Verified for all
+  three that this creates no new forward reference.
+- **1× dependency-array mismatch** — `MessagesClient.tsx`'s `openThread`
+  `useCallback` deps simplified from
+  `[loadMessages, user?.id, refreshBadges, loadConversations]` to `[user]`,
+  after tracing that `loadMessages`/`refreshBadges` are both themselves
+  derived from the same `user` and `loadConversations` never changes — a
+  safe, behavior-preserving simplification matching the compiler's own
+  inference.
+- **2× `no-this-alias`** — `lib/debug-logger.ts`: removed a redundant
+  `const self = this` where the callback was already an arrow function
+  (`interceptFetch`), and converted a nested `function recordVital(...)` to
+  an arrow (`observeWebVitals`) so it inherits `this` lexically instead of
+  needing the alias — confirmed it's never passed by reference elsewhere.
+- **3× `set-state-in-effect`** (`FriendsClient.tsx`, `MessagesClient.tsx`,
+  `NotificationsClient.tsx` — plus 2 more of the same shape that only
+  surfaced once the "declared before use" fixes above let the analyzer trace
+  into the called function: `app/(app)/list/[id]/page.tsx`,
+  `BrowseClient.tsx`) — all the same pattern: an early-exit
+  `setLoading(false)` when logged out. **Decision (confirmed with user):**
+  justified suppression rather than a deeper refactor — `useAuth()` already
+  exposes an `isLoading` flag that *could* be wired in for a "pure" fix, but
+  doing so touches spinner-timing behavior in 5 components for a rule with
+  zero live consequence (no compiler installed). Suppressed with a comment
+  explaining why, matching this codebase's existing convention.
+- **20× `no-explicit-any`** — typed properly across
+  `app/(app)/list/[id]/page.tsx`, `app/(app)/profile/page.tsx`,
+  `app/api/health/route.ts`, `components/BrowseClient.tsx`,
+  `components/MessagesClient.tsx`, `components/NotificationsClient.tsx`,
+  `components/SeasonsPanel.tsx`. Added `NotificationItem`, `GenreWatchCount`,
+  `DtddTopic` to `lib/types.ts`; consolidated two divergent same-named
+  `CachedTopic` interfaces (`lib/store.ts` vs. a differently-shaped local one
+  in `TriggerWarnings.tsx`) into the single correctly-named `DtddTopic`.
+
+**Two real, live bugs found and fixed while tracing `any` types to their
+actual shapes** (verified against the live database via direct `pg_proc`
+introspection, not the migration files — this codebase has a track record of
+migrations being superseded by later `CREATE OR REPLACE FUNCTION` calls with
+no new migration file):
+
+1. **`MessagesClient.tsx` was reading fields that don't exist.** The
+   component used `c.partner_id`, `c.unread_count`, `c.last_message_at`
+   throughout — none of which exist on the live `get_conversations()`
+   return shape (`other_id`, `unseen_count`, `last_sent_at`). This meant
+   clicking a conversation likely didn't open the right thread
+   (`openThread(undefined, ...)`), the unread badge never rendered, and the
+   timestamp was always blank. Fixed `lib/types.ts`'s `Conversation` to the
+   real live shape and corrected every read site.
+2. **Profile page's "Genre DNA" section was fully broken.** It called
+   `get_user_taste_data` with parameter name `user_id`, but the live
+   function's real parameter is `p_user_id` (a name PostgREST would reject
+   outright), and even if that were fixed, the code read the result as a
+   single object with named mood properties (`taste.action`, `taste.comedy`,
+   …) — but the live function returns an **array of `{genre_id,
+   watch_count}` rows**, a completely different shape. This section has
+   likely always rendered empty. **Fixed properly** (per user decision):
+   corrected the parameter name, reused the `genres`-table lookup pattern
+   `BrowseClient.tsx` already uses to map `genre_id → name`, and fed the
+   existing `GenreCount[]` render logic (a proportional bar chart) with real
+   per-genre watch counts — restoring the feature to actually working,
+   without changing any of the existing render/display code.
+
+**Verified:** `npm run lint` exits 0 (18 pre-existing unrelated warnings
+remain, untouched — out of scope, don't fail the build). `npx tsc --noEmit`
+clean. `npm test` 29/29. `npm run test:e2e` 11/11 (the deterministic suite's
+`browse-filters.spec.ts` directly exercises the reordered
+`BrowseClient.tsx` code path). `npm run build` succeeds. Verified live in the
+browser against the real backend: `/browse` renders all 8 filter dropdowns
+(no "Platform"), Format→Movies correctly shows "Clear all ×" and real
+results, zero console errors — confirming the `BrowseClient.tsx`
+reorder/typing didn't regress anything. The `Conversation`/Genre-DNA fixes on
+authenticated-only pages (Messages, Profile) rest on `tsc`'s structural
+check against the verified live RPC shapes rather than a manual
+authenticated click-through (no test-account credentials available this
+session).
+
 ### 🎭 Remediation Session 6 — Playwright e2e + release tags (v6.20, 2026-07-14)
 
 Closes the last unbuilt item on the original audit's remediation punch list:

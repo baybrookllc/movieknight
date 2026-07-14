@@ -6,17 +6,18 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useBadges } from '@/components/BadgeProvider';
 import { getAvatarUrl, timeAgo } from '@/lib/utils';
+import type { Conversation, Message } from '@/lib/types';
 
 export default function MessagesClient() {
   const router = useRouter();
   const { user } = useAuth();
   const { refresh: refreshBadges } = useBadges();
 
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [activePartnerName, setActivePartnerName] = useState('');
   const [activePartnerAvatar, setActivePartnerAvatar] = useState('');
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -31,6 +32,8 @@ export default function MessagesClient() {
   }, []);
 
   useEffect(() => {
+    // Early-exit when logged out; not a cascading-render risk, just stops the spinner.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setLoading(false); return; }
     loadConversations();
   }, [user, loadConversations]);
@@ -67,7 +70,7 @@ export default function MessagesClient() {
     }
     channelRef.current = supabase
       .channel(`messages:${partnerId}`)
-      .on('postgres_changes', {
+      .on<Message>('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
@@ -81,7 +84,7 @@ export default function MessagesClient() {
         }
       })
       .subscribe();
-  }, [loadMessages, user?.id, refreshBadges, loadConversations]);
+  }, [user]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -96,15 +99,15 @@ export default function MessagesClient() {
   }, []);
 
   const sendMessage = async () => {
-    if (!draft.trim() || !activePartnerId || sending) return;
+    if (!draft.trim() || !activePartnerId || !user || sending) return;
     const content = draft.trim();
     setDraft('');
     setSending(true);
 
     // Optimistic update
-    const optimistic = {
+    const optimistic: Message = {
       id: `opt-${Date.now()}`,
-      sender_id: user?.id,
+      sender_id: user.id,
       receiver_id: activePartnerId,
       content,
       created_at: new Date().toISOString(),
@@ -148,13 +151,13 @@ export default function MessagesClient() {
             No conversations yet. Message a friend from their profile.
           </div>
         ) : (
-          conversations.map((c: any) => {
-            const avatar = getAvatarUrl(c.avatar_id, c.partner_id);
+          conversations.map((c) => {
+            const avatar = getAvatarUrl(c.avatar_id, c.other_id);
             const preview = c.is_sender ? `You: ${c.last_message || ''}` : (c.last_message || '');
-            const isActive = c.partner_id === activePartnerId;
+            const isActive = c.other_id === activePartnerId;
             return (
-              <button key={c.partner_id}
-                onClick={() => openThread(c.partner_id, c.display_name, c.avatar_id || '')}
+              <button key={c.other_id}
+                onClick={() => openThread(c.other_id, c.display_name || c.username, c.avatar_id || '')}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                   background: isActive ? 'var(--bg-hover)' : 'none',
@@ -176,10 +179,10 @@ export default function MessagesClient() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{timeAgo(c.last_message_at)}</div>
-                  {c.unread_count > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{timeAgo(c.last_sent_at)}</div>
+                  {c.unseen_count > 0 && (
                     <div style={{ background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 9, minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
-                      {c.unread_count > 99 ? '99+' : c.unread_count}
+                      {c.unseen_count > 99 ? '99+' : c.unseen_count}
                     </div>
                   )}
                 </div>
@@ -201,7 +204,7 @@ export default function MessagesClient() {
 
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {messages.map((m: any) => {
+            {messages.map((m) => {
               const isMine = m.sender_id === user?.id;
               return (
                 <div key={m.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>

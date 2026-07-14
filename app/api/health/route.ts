@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type PostgrestError } from '@supabase/supabase-js';
 import { logServerError } from '@/lib/server-error-logger';
 
 export const runtime = 'nodejs';
@@ -46,7 +46,7 @@ export async function GET() {
       new Promise<{ error: Error }>((_, rej) =>
         setTimeout(() => rej(new Error('DB ping timeout (5s)')), 5000)
       ),
-    ]) as any;
+    ]) as { error: PostgrestError | Error | null };
 
     checks.database = {
       ok: !error,

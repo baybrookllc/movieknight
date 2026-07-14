@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 
 import TitleCard from '@/components/TitleCard';
-import type { Title } from '@/lib/types';
+import type { Title, DtddTopic } from '@/lib/types';
 import {
   type FilterState,
   DEFAULT_FILTERS,
@@ -81,7 +81,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [filterHiddenTriggers, setFilterHiddenTriggers] = useState(false);
   const [userTriggerPrefs, setUserTriggerPrefs] = useState<Record<string, 'flag' | 'hide'>>({});
-  const [triggersByTitleId, setTriggersByTitleId] = useState<Record<string, any[]>>({});
+  const [triggersByTitleId, setTriggersByTitleId] = useState<Record<string, DtddTopic[]>>({});
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -182,6 +182,36 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
     return () => clearTimeout(t);
   }, [inputVal]);
 
+  // Fetch trigger data for search results
+  const fetchTriggersForResults = useCallback(async (titleIds: string[]) => {
+    if (!titleIds.length) return;
+    try {
+      const { data: triggerData } = await supabase
+        .from('dtdd_cache')
+        .select('title_id, topics')
+        .in('title_id', titleIds);
+
+      // Transform into titleId → topics map
+      const byId: Record<string, DtddTopic[]> = {};
+      triggerData?.forEach(t => { byId[t.title_id] = t.topics; });
+      setTriggersByTitleId(prev => ({ ...prev, ...byId }));
+
+      // Fetch user's trigger prefs if not already cached
+      if (user && Object.keys(userTriggerPrefs).length === 0) {
+        const { data: prefs } = await supabase
+          .from('user_trigger_prefs')
+          .select('topic_key, action')
+          .eq('user_id', user.id);
+
+        const prefsMap: Record<string, 'flag' | 'hide'> = {};
+        prefs?.forEach(p => { prefsMap[p.topic_key] = p.action; });
+        setUserTriggerPrefs(prefsMap);
+      }
+    } catch (err) {
+      console.error('[BrowseClient] fetchTriggersForResults failed:', err);
+    }
+  }, [user, userTriggerPrefs]);
+
   const runSearch = useCallback(async (append = false) => {
     const gen = ++genRef.current;
     setLoading(true);
@@ -229,7 +259,7 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
             }
 
             // Build trigger map
-            const triggerMap: Record<string, any[]> = {};
+            const triggerMap: Record<string, DtddTopic[]> = {};
             triggerData?.forEach(t => { triggerMap[t.title_id] = t.topics; });
 
             // Filter out titles with hidden triggers
@@ -281,37 +311,9 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
     }
   }, [query, filters]);
 
-  // Fetch trigger data for search results
-  const fetchTriggersForResults = useCallback(async (titleIds: string[]) => {
-    if (!titleIds.length) return;
-    try {
-      const { data: triggerData } = await supabase
-        .from('dtdd_cache')
-        .select('title_id, topics')
-        .in('title_id', titleIds);
-
-      // Transform into titleId → topics map
-      const byId: Record<string, any[]> = {};
-      triggerData?.forEach(t => { byId[t.title_id] = t.topics; });
-      setTriggersByTitleId(prev => ({ ...prev, ...byId }));
-
-      // Fetch user's trigger prefs if not already cached
-      if (user && Object.keys(userTriggerPrefs).length === 0) {
-        const { data: prefs } = await supabase
-          .from('user_trigger_prefs')
-          .select('topic_key, action')
-          .eq('user_id', user.id);
-
-        const prefsMap: Record<string, 'flag' | 'hide'> = {};
-        prefs?.forEach(p => { prefsMap[p.topic_key] = p.action; });
-        setUserTriggerPrefs(prefsMap);
-      }
-    } catch (err) {
-      console.error('[BrowseClient] fetchTriggersForResults failed:', err);
-    }
-  }, [user, userTriggerPrefs]);
-
   useEffect(() => {
+    // runSearch's own setLoading(true) at its top is what this suppresses;
+    // the effect body itself has no direct setState call.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     runSearch(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps

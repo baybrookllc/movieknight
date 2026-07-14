@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Nested checkouts / build output that aren't part of this app's source:
     ".claude/worktrees/**",
     "mcp-server/dist/**",
+    // Standalone Node/CJS hook script (PostToolUse), not part of the app:
+    ".claude/hooks/**",
   ]),
 ]);
 

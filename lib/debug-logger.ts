@@ -402,7 +402,6 @@ class DebugLogger {
   private interceptFetch(): void {
     try {
       this.originalFetch = window.fetch.bind(window);
-      const self = this;
 
       window.fetch = async (
         input: RequestInfo | URL,
@@ -417,7 +416,7 @@ class DebugLogger {
 
         // Exit early for ingest calls — avoid timing overhead
         if (url.includes(INGEST_URL)) {
-          return self.originalFetch!(input, init);
+          return this.originalFetch!(input, init);
         }
 
         const method =
@@ -431,7 +430,7 @@ class DebugLogger {
         const baseUrl = url.split('?')[0];
 
         try {
-          const response = await self.originalFetch!(input, init);
+          const response = await this.originalFetch!(input, init);
           const responseTime = Math.round(performance.now() - start);
 
           try {
@@ -441,10 +440,10 @@ class DebugLogger {
               method: method.toUpperCase(),
               status: response.status,
               responseTime,
-              context: { page: self.currentPage() },
-              timestamp: self.now(),
+              context: { page: this.currentPage() },
+              timestamp: this.now(),
             };
-            self.push(event);
+            this.push(event);
           } catch {
             // Never throw
           }
@@ -459,10 +458,10 @@ class DebugLogger {
               method: method.toUpperCase(),
               status: 0,
               responseTime,
-              context: { page: self.currentPage() },
-              timestamp: self.now(),
+              context: { page: this.currentPage() },
+              timestamp: this.now(),
             };
-            self.push(event);
+            this.push(event);
           } catch {
             // Never throw
           }
@@ -488,22 +487,20 @@ class DebugLogger {
   // ── Core Web Vitals ───────────────────────────────────────────────────────
 
   private observeWebVitals(): void {
-    const self = this;
-
-    function recordVital(name: string, value: number): void {
+    const recordVital = (name: string, value: number): void => {
       try {
         const event: PerfEvent = {
           type: 'perf',
           metricName: name,
           value: Math.round(value * 100) / 100,
-          context: { page: self.currentPage() },
-          timestamp: self.now(),
+          context: { page: this.currentPage() },
+          timestamp: this.now(),
         };
-        self.push(event);
+        this.push(event);
       } catch {
         // Never throw
       }
-    }
+    };
 
     // LCP — fires once with the final value before the page becomes hidden
     try {

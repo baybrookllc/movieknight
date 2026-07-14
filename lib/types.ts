@@ -116,14 +116,53 @@ export interface FriendActivity {
   watched_at: string;
 }
 
+// Return shape of the get_conversations() RPC (verified against the live
+// function definition — column names here do not match the RPC's older,
+// superseded signature that this interface previously described).
 export interface Conversation {
-  partner_id: string;
+  other_id: string;
   display_name: string | null;
+  username: string;
   avatar_id: string | null;
-  last_message: string | null;
-  unread_count: number;
+  last_message: string;
+  last_sent_at: string;
   is_sender: boolean;
+  unseen_count: number;
+}
+
+// Return shape of the get_notifications() RPC — the joined/enriched row
+// (actor + title + list details), distinct from the raw `notifications`
+// table row (see Notification above).
+export interface NotificationItem {
+  id: string;
+  type: Notification['type'];
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_avatar: string | null;
+  title_id: string | null;
+  title: string | null;
+  poster_path: string | null;
+  list_id: string | null;
+  list_title: string | null;
+  message: string | null;
   created_at: string;
+  read_at: string | null;
+}
+
+// Return shape of the get_user_taste_data() RPC — one row per genre with a
+// watch count, not a single named-mood object.
+export interface GenreWatchCount {
+  genre_id: number;
+  watch_count: number;
+}
+
+// dtdd-fetch edge function's per-topic cache shape (also mirrored locally in
+// supabase/functions/dtdd-fetch/index.ts, which can't import this file).
+export interface DtddTopic {
+  topicKey: string;
+  topicName: string;
+  yesSum: number;
+  noSum: number;
 }
 
 export interface SearchResult {

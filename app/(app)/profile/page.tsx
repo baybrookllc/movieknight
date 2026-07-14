@@ -9,6 +9,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import { getAvatarUrl, TMDB_IMG, releaseYear } from '@/lib/utils';
 import TriggerWarnings from '@/components/TriggerWarnings';
+import type { GenreWatchCount } from '@/lib/types';
 
 // AskClaude — lazy-loaded AI assistant
 const AskClaude = dynamic(() => import('@/components/AskClaude'), { ssr: false });
@@ -44,6 +45,10 @@ interface RecentTitle {
   media_type: 'movie' | 'tv';
   release_date: string | null;
 }
+interface WatchHistoryRow {
+  title_id: string;
+  titles: RecentTitle | null;
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -77,17 +82,19 @@ export default function ProfilePage() {
         setStats({ total: hist.length, watched, watching, want });
       }
 
-      // 2. Fetch genre DNA from taste RPC
-      const tasteRes = await supabase.rpc('get_user_taste_data', { user_id: user.id });
-      if (tasteRes.data) {
-        const taste = tasteRes.data as any;
-        const axes = [
-          { name: 'Action', count: Math.round((taste.action ?? 0) * 10) },
-          { name: 'Comedy', count: Math.round((taste.comedy ?? 0) * 10) },
-          { name: 'Drama / Emotional', count: Math.round((taste.emotional ?? 0) * 10) },
-          { name: 'Mind-bending', count: Math.round((taste.mind_bending ?? 0) * 10) },
-          { name: 'Thrilling', count: Math.round((taste.thrilling ?? 0) * 10) },
-        ].filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 6);
+      // 2. Fetch genre DNA from taste RPC — one row per genre with a watch
+      // count (not a single named-mood object). Map genre_id to a display
+      // name via the genres table, same pattern BrowseClient.tsx already
+      // uses for its filter dropdown.
+      const tasteRes = await supabase.rpc('get_user_taste_data', { p_user_id: user.id });
+      const tasteRows = (tasteRes.data ?? []) as GenreWatchCount[];
+      if (tasteRows.length > 0) {
+        const { data: genreRows } = await supabase.from('genres').select('id,name');
+        const genreNameById = new Map((genreRows ?? []).map(g => [g.id, g.name]));
+        const axes = tasteRows
+          .map(t => ({ name: genreNameById.get(t.genre_id) ?? `Genre ${t.genre_id}`, count: t.watch_count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 6);
         if (axes.length > 0) setGenres(axes);
       }
 
@@ -101,9 +108,11 @@ export default function ProfilePage() {
         .limit(8);
 
       if (recentData) {
-        setRecent((recentData as any[])
-          .filter(r => r.titles)
-          .map(r => r.titles as RecentTitle));
+        setRecent(
+          (recentData as unknown as WatchHistoryRow[])
+            .filter((r): r is WatchHistoryRow & { titles: RecentTitle } => r.titles !== null)
+            .map(r => r.titles)
+        );
       }
 
       setStatsLoading(false);

@@ -112,7 +112,11 @@ export default function FriendsClient() {
     }
   }, [refreshBadges]);
 
-  useEffect(() => { if (user) loadTab(tab); else setLoading(false); }, [tab, user, loadTab]);
+  useEffect(() => {
+    // Early-exit when logged out; not a cascading-render risk, just stops the spinner.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (user) loadTab(tab); else setLoading(false);
+  }, [tab, user, loadTab]);
 
   const switchTab = (t: Tab) => { setTab(t); };
 

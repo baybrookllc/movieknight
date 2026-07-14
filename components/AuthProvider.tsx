@@ -34,6 +34,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userProfile,
   } = useAppStore();
 
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
   // Initialize auth state on mount
   useEffect(() => {
     const initAuth = async () => {
@@ -85,21 +100,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription?.unsubscribe();
     };
   }, [prevAuthUserId, setCurrentSession, setUserProfile]);
-
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-      setUserProfile(data);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

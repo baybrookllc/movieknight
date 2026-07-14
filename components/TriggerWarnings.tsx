@@ -4,13 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import { FUNCTIONS_URL, getAuthHeader } from '@/lib/utils';
-
-interface CachedTopic {
-  topicKey: string;
-  topicName: string;
-  yesSum: number;
-  noSum: number;
-}
+import type { DtddTopic } from '@/lib/types';
 
 interface TriggerPref {
   user_id: string;
@@ -49,7 +43,7 @@ const topicRow: React.CSSProperties = {
 export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
   const { showToast } = useToast();
   const [enabled, setEnabled] = useState(false);
-  const [topics, setTopics] = useState<CachedTopic[]>([]);
+  const [topics, setTopics] = useState<DtddTopic[]>([]);
   const [prefs, setPrefs] = useState<Record<string, 'flag' | 'hide'>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,7 +101,7 @@ export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
 
         // 4. Fetch user preferences
         if (fetchedTopics && fetchedTopics.length > 0) {
-          const topicKeys = fetchedTopics.map((t: CachedTopic) => t.topicKey);
+          const topicKeys = fetchedTopics.map((t: DtddTopic) => t.topicKey);
           const { data: userPrefs } = await supabase
             .from('user_trigger_prefs')
             .select('topic_key, action')

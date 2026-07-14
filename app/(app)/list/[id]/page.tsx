@@ -6,22 +6,28 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import TitleCard from '@/components/TitleCard';
+import type { CustomList, Title } from '@/lib/types';
+
+interface ListItemRow {
+  id: string;
+  added_at: string;
+  titles: Pick<Title, 'id' | 'title' | 'poster_path' | 'media_type' | 'release_date' | 'vote_average'> | null;
+}
+
+interface ListItemWithTitle extends Omit<ListItemRow, 'titles'> {
+  titles: NonNullable<ListItemRow['titles']>;
+}
 
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params); // Next.js 16: params is a Promise
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const [list, setList] = useState<any>(null);
-  const [items, setItems] = useState<any[]>([]);
+  const [list, setList] = useState<CustomList | null>(null);
+  const [items, setItems] = useState<ListItemWithTitle[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
-
-  useEffect(() => {
-    loadList();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
 
   async function loadList() {
     setLoading(true);
@@ -41,9 +47,21 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
     }
     setList(listRes.data);
     setIsOwner(listRes.data.owner_id === user?.id);
-    setItems(((itemsRes.data ?? []) as any[]).filter(r => r.titles));
+    setItems(
+      ((itemsRes.data ?? []) as unknown as ListItemRow[]).filter(
+        (r): r is ListItemWithTitle => r.titles !== null
+      )
+    );
     setLoading(false);
   }
+
+  useEffect(() => {
+    // loadList's own setLoading(true) at its top is what this suppresses;
+    // the effect body itself has no direct setState call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user]);
 
   async function removeItem(itemId: string) {
     await supabase.from('list_items').delete().eq('id', itemId);
@@ -52,7 +70,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
-  if (notFound) {
+  if (notFound || !list) {
     return (
       <div className="empty-state">
         <p>This list doesn&apos;t exist or you don&apos;t have access to it.</p>
@@ -93,7 +111,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-          {items.map((item: any) => (
+          {items.map((item) => (
             <div key={item.id} style={{ position: 'relative' }}>
               <TitleCard {...item.titles} />
               {isOwner && (

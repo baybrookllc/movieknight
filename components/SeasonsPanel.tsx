@@ -49,7 +49,11 @@ function SeasonAccordion({
       .eq('title_id', titleId)
       .eq('episode_season', season.season_number)
       .then(({ data }) => {
-        setWatchedEps(new Set((data ?? []).map((r: any) => r.episode_number.toString())));
+        setWatchedEps(new Set(
+          (data ?? [])
+            .filter((r): r is { episode_number: number } => r.episode_number !== null)
+            .map(r => r.episode_number.toString())
+        ));
       });
   }, [user, isOpen, titleId, season.season_number]);
 

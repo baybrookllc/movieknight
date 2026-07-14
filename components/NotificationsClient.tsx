@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useBadges } from '@/components/BadgeProvider';
 import { getAvatarUrl, timeAgo, TMDB_IMG } from '@/lib/utils';
+import type { NotificationItem } from '@/lib/types';
 
 const ICONS: Record<string, string> = {
   friend_request: '👤',
@@ -17,7 +18,7 @@ const ICONS: Record<string, string> = {
   message: '💬',
 };
 
-function notifText(n: any): string {
+function notifText(n: NotificationItem): string {
   const name = n.actor_name || 'Someone';
   switch (n.type) {
     case 'friend_request':   return `${name} sent you a friend request`;
@@ -44,10 +45,12 @@ export default function NotificationsClient() {
   const router = useRouter();
   const { user } = useAuth();
   const { refresh: refreshBadges } = useBadges();
-  const [notifs, setNotifs] = useState<any[]>([]);
+  const [notifs, setNotifs] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Early-exit when logged out; not a cascading-render risk, just stops the spinner.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setLoading(false); return; }
     loadNotifications();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +66,7 @@ export default function NotificationsClient() {
     refreshBadges();
   }
 
-  const handleClick = (n: any) => {
+  const handleClick = (n: NotificationItem) => {
     if (n.title_id) router.push(`/${n.title_id}`);
     else if (n.list_id) router.push(`/list/${n.list_id}`);
     else if (n.type === 'friend_request' || n.type === 'friend_accepted') router.push('/friends');
@@ -80,7 +83,7 @@ export default function NotificationsClient() {
   }
 
   // Group by day
-  const groups: Record<string, any[]> = {};
+  const groups: Record<string, NotificationItem[]> = {};
   const order: string[] = [];
   for (const n of notifs) {
     const label = dayLabel(n.created_at);
@@ -109,7 +112,7 @@ export default function NotificationsClient() {
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, marginTop: 20 }}>
               {label}
             </div>
-            {groups[label].map((n: any) => {
+            {groups[label].map((n) => {
               const icon = ICONS[n.type] || '🔔';
               const avatar = n.actor_id ? getAvatarUrl(n.actor_avatar, n.actor_id) : null;
               const isClickable = !!(n.title_id || n.list_id || n.type === 'friend_request' || n.type === 'friend_accepted' || n.type === 'message');
