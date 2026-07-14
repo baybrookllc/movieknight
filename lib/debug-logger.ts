@@ -13,6 +13,8 @@
  *   debugLogger.destroy();      // call on unmount / cleanup
  */
 
+import { redactPII, redactContext } from '@/lib/pii-redact';
+
 export type EventType = 'console' | 'error' | 'network' | 'perf';
 export type LogLevel = 'log' | 'warn' | 'error' | 'info';
 
@@ -291,16 +293,18 @@ class DebugLogger {
             // Forward failure is non-fatal
           }
           try {
-            const message = args
-              .map((a) =>
-                typeof a === 'string'
-                  ? a
-                  : a instanceof Error
-                  ? a.message
-                  : JSON.stringify(a)
-              )
-              .join(' ')
-              .slice(0, 2000);
+            const message = redactPII(
+              args
+                .map((a) =>
+                  typeof a === 'string'
+                    ? a
+                    : a instanceof Error
+                    ? a.message
+                    : JSON.stringify(a)
+                )
+                .join(' ')
+                .slice(0, 2000)
+            );
 
             const errorArg = args.find((a): a is Error => a instanceof Error);
 
@@ -344,13 +348,13 @@ class DebugLogger {
       const event: ErrorEvent = {
         type: 'error',
         level: 'error',
-        message: ev.message ?? 'Unknown error',
-        context: {
+        message: redactPII(ev.message ?? 'Unknown error'),
+        context: redactContext({
           page: this.currentPage(),
           filename: ev.filename,
           lineno: ev.lineno,
           colno: ev.colno,
-        },
+        }),
         stack: (ev.error as Error | null)?.stack ?? null,
         timestamp: this.now(),
       };
@@ -373,7 +377,7 @@ class DebugLogger {
       const event: ErrorEvent = {
         type: 'error',
         level: 'error',
-        message: String(message).slice(0, 2000),
+        message: redactPII(String(message).slice(0, 2000)),
         context: { page: this.currentPage() },
         stack: reason instanceof Error ? reason.stack ?? null : null,
         timestamp: this.now(),

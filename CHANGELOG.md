@@ -8,6 +8,109 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧹 Remediation Session 10 — remaining hygiene (v6.19, 2026-07-13)
+
+The last punch-list item from the original audit. Three unrelated cleanups,
+each independently scoped.
+
+**Added — `lib/pii-redact.ts`:** a targeted PII scrubber (not an exhaustive
+classifier) for emails, bearer/JWT tokens, and inline `password`/`token`/
+`secret` key-value pairs. Sanity-checked against 5 representative inputs
+before wiring it in. Applied to **all four** error/telemetry loggers this
+project now has — not just `lib/debug-logger.ts` (the item as originally
+named), but also `lib/client-error-report.ts`, `lib/server-error-logger.ts`,
+and `supabase/functions/_shared/error-logger.ts` (a small duplicated Deno
+copy, since edge functions can't import Next.js `lib/` path aliases) — since
+all four feed the same `error_logs`/`debug_logs` tables and share the same
+risk. `debug-logger.ts`'s console interceptor was the biggest exposure:
+it captures whatever *any* developer logs anywhere in the app, verbatim,
+which is the widest and least-controlled PII surface of the four.
+
+**Fixed — `supabase/functions/tv-auth/index.ts`:**
+- **IP-header spoofing.** `getClientIp()` checked `x-forwarded-for` before
+  `cf-connecting-ip` and trusted the header's first comma-separated entry
+  blindly — but `x-forwarded-for`'s value is client-supplied and trivially
+  spoofable (send your own `X-Forwarded-For: 1.2.3.4` and the naive
+  `.split(",")[0]` believes it), while `cf-connecting-ip` is set by
+  Cloudflare from the actual TCP connection and can't be overridden by the
+  client. Swapped the priority — matches exactly the finding from the
+  original audit (§6): "prioritizes the spoofable `X-Forwarded-For` over
+  `cf-connecting-ip` — the opposite of the safer shared helper." This
+  directly affects the accuracy of this function's IP-based rate limiting
+  (code-creation, poll, and claim attempts) — a spoofed IP could bypass it
+  entirely.
+- **Missing catch-all error handling** (the gap flagged in Session 8, now
+  closed): wrapped the whole handler in try/catch, wired to
+  `logEdgeError`, matching the other 6 edge functions from Session 8.
+- **Documented, not changed:** the in-memory rate-limit bucket is
+  per-Deno-isolate, not shared across concurrent isolates — under
+  horizontal scaling the effective global limit is (per-isolate limit) ×
+  (isolate count), not a hard cap. Fixing that needs an external store
+  (Upstash, the pattern `app/api/claude/ask/route.ts` already uses) — a
+  bigger change than this session's scope, called out as a known
+  limitation rather than silently left unmentioned.
+
+**Fixed — the actual "rate-limiter fail-open alerting" finding
+(`supabase/functions/_shared/rate-limit.ts`):** this is a *different* rate
+limiter than `tv-auth`'s own in-memory one above — the shared
+Upstash-backed helper used by `semantic-search` and `generate-embedding`.
+By design it fails open (allows all requests) when `UPSTASH_REDIS_REST_URL`/
+`_TOKEN` aren't set, so the app doesn't 429 every caller if Upstash is
+intentionally unconfigured (e.g. local dev) — a reasonable design, but
+previously only a `console.warn` marked it, meaning a real production
+misconfiguration (Upstash secret missing or rotated) would silently
+disable rate limiting **in front of paid OpenAI-embedding calls** with
+nobody finding out. Added a once-per-isolate `logEdgeError` call on that
+path — real production alerting, still zero risk of flooding `error_logs`
+since the condition is static per-isolate. Both callers (`semantic-search`,
+`generate-embedding`) redeployed and smoke-tested against production
+post-deploy.
+
+**Fixed — `npm audit`:** the explicitly-named reachable advisory
+(`protobufjs`, pulled in transitively via `posthog-js` → `@opentelemetry/
+exporter-logs-otlp-http` → `@opentelemetry/otlp-transformer`, all genuinely
+bundled into the client) is fully resolved via the non-breaking `npm audit
+fix` — confirmed via `npm ls protobufjs` afterward (no longer a dependency
+at all). That same fix also cleared `dompurify` and `js-yaml` for free (13
+of 16 total findings). The remaining 3 (`path-to-regexp` via `@vercel/
+config`) are devDependency-only — never shipped to production — and fixing
+them needs `--force` (a breaking downgrade); left alone, matching the
+plan's specific "reachable protobufjs" scope rather than forcing an
+unnecessary breaking change on a non-reachable dev tool. Also ran the same
+fix in `mcp-server/` (a separate package with its own lockfile): 2
+findings (`hono`, `qs`), both resolved cleanly, 0 remaining.
+
+**Fixed — 19 `no-explicit-any` errors in `mcp-server/src/index.ts`**
+(nearly half the project's 39 total, the single worst-offending file): 18
+were the identical pattern — `(args as any).field` at each MCP tool's
+dispatch site — replaced with either a specific type per field or
+`Parameters<typeof handler>[0]` for the 4 handlers that take a whole typed
+options object. The 19th wasn't really a typing problem: a
+`supabase.rpc("get_table_sizes")` call whose result (`tables`/`tablesError`)
+was destructured and then **never referenced again** — the function
+returns an entirely different, hardcoded structure a few lines later. That
+RPC doesn't exist anywhere in `supabase/migrations/`, so every call to it
+was silently failing and being discarded. Removed rather than typed, since
+there was nothing real to type. `mcp-server`'s own `tsc` build was clean
+before and after (`node_modules` wasn't installed for this sub-package
+until now — installed to actually verify the build, not just eyeball it).
+
+**Also fixed while in the area:** `.gitignore`'s `/node_modules` entry was
+anchored to the repo root only, so `mcp-server/node_modules/` (created by
+installing its dependencies to run this verification) showed up as
+untracked instead of being ignored. Changed to the unanchored `node_modules`
+so it covers nested packages too.
+
+**Verified:** `npm test` (29/29), `npm run lint` (69→48 problems, 39→20
+`no-explicit-any` — the exact 19-error reduction expected from the
+mcp-server fix, confirming no other regressions), `npm run build` clean.
+`redactPII` sanity-checked against 5 representative inputs (email, bearer
+token, quoted token key-value, raw JWT, plain text) before wiring it in.
+`tv-auth` redeployed and smoke-tested (`action=create` still returns a
+valid code + QR URL); `semantic-search` and `generate-embedding` (the
+`_shared/rate-limit.ts` callers) also redeployed and smoke-tested — all
+three against production post-deploy, all returning normal results.
+
 ### 🌿 Remediation Session 9 — branch decision + rollback runbook (v6.18, 2026-07-13)
 
 **`sharp-mayer` branch — abandoned, fully cleaned up.** Investigated before
@@ -539,12 +642,29 @@ superseded by master first. `docs/rollback-runbook.md` added, with the
 primary (forward-fix migration) recovery path actually tested end-to-end
 locally.
 
-**Pre-existing, not yet touched:** Playwright e2e tests, `debug-logger`
-PII redaction, `tv-auth` rate-limiter alerting (and its missing catch-all
-error handling, noted in Session 8), the remaining ~50 real lint errors +
-`any` types, and commerce Phases P1–P4 (P0 is done and live; P1 is
-unblocked, not started). The untracked third-party
-`gemini_feedbac_05242026.md` at repo root (cross-referenced by
+~~`debug-logger` PII redaction~~ — **✅ resolved 2026-07-13** (Remediation
+Session 10, above): a shared `redactPII`/`redactContext` utility applied
+across all four telemetry/error loggers this project has, not just
+`debug-logger.ts`.
+
+~~`tv-auth` rate-limiter alerting + missing catch-all error handling~~ —
+**✅ resolved 2026-07-13** (Remediation Session 10): IP-header spoofing bug
+fixed (was trusting client-supplied `x-forwarded-for` over Cloudflare's
+non-spoofable `cf-connecting-ip`), whole handler now wrapped in try/catch
+wired to `logEdgeError`. The per-isolate in-memory rate-limit architecture
+is a known, documented limitation, not silently left unmentioned — fixing
+it for real needs an external store, out of this session's scope.
+
+~~The remaining ~50 real lint errors + `any` types~~ — **partially
+resolved 2026-07-13** (Remediation Session 10): the single worst-offending
+file (`mcp-server/src/index.ts`, 19 of the project's 39 `no-explicit-any`
+errors) is fully typed. 20 `no-explicit-any` errors remain spread across
+other files — not zeroed out, but the worst concentration is gone.
+
+**Pre-existing, not yet touched:** Playwright e2e tests, the remaining ~20
+`any`-type errors spread across smaller files, and commerce Phases P1–P4
+(P0 is done and live; P1 is unblocked, not started). The untracked
+third-party `gemini_feedbac_05242026.md` at repo root (cross-referenced by
 `movieknight-audit-report.md`) has been moved into
 `ADAM_DOCS/gemini_feedback_05242026.md` (typo in the old filename fixed) and
 committed.

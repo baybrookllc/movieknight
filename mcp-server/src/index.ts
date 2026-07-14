@@ -487,9 +487,6 @@ async function handleEdgeFunctionTest(function_name: string, query_string?: stri
 // ── Debug tools ───────────────────────────────────────────────────────────────
 
 async function handleDatabasePerformance(threshold_ms: number = 100) {
-  // Get table sizes and index information
-  const { data: tables, error: tablesError } = await supabase.rpc("get_table_sizes") as any;
-
   // For now, return analysis of key tables
   const tableStats = await Promise.all([
     supabase.from("titles").select("*", { count: "exact", head: true }),
@@ -738,7 +735,11 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+  const { name } = request.params;
+  // Each tool's own inputSchema (declared in TOOLS below) is what actually
+  // validates shape at the MCP layer — this cast just gives call sites a
+  // typed view of already-validated arguments instead of `any`.
+  const args = request.params.arguments as Record<string, unknown> | undefined;
 
   try {
     let result: unknown;
@@ -748,55 +749,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleAppHealth();
         break;
       case "get_user_stats":
-        result = await handleGetUserStats((args as any).email);
+        result = await handleGetUserStats(args?.email as string);
         break;
       case "seed_titles":
-        result = await handleSeedTitles((args as any).media_type, (args as any).pages);
+        result = await handleSeedTitles(args?.media_type as string, args?.pages as number);
         break;
       case "backfill_embeddings":
-        result = await handleBackfillEmbeddings((args as any).limit);
+        result = await handleBackfillEmbeddings(args?.limit as number | undefined);
         break;
       case "title_lookup":
-        result = await handleTitleLookup((args as any).title_id);
+        result = await handleTitleLookup(args?.title_id as string);
         break;
       case "recent_activity":
-        result = await handleRecentActivity((args as any).limit);
+        result = await handleRecentActivity(args?.limit as number | undefined);
         break;
       case "search_catalog":
-        result = await handleSearchCatalog((args as any).query, (args as any).media_type);
+        result = await handleSearchCatalog(args?.query as string, args?.media_type as string | undefined);
         break;
       case "edge_function_test":
         result = await handleEdgeFunctionTest(
-          (args as any).function_name,
-          (args as any).query_string
+          args?.function_name as string,
+          args?.query_string as string | undefined
         );
         break;
       case "database_performance":
-        result = await handleDatabasePerformance((args as any).threshold_ms);
+        result = await handleDatabasePerformance(args?.threshold_ms as number | undefined);
         break;
       case "check_table_health":
-        result = await handleCheckTableHealth((args as any).table_name);
+        result = await handleCheckTableHealth(args?.table_name as string);
         break;
       case "find_errors":
-        result = await handleFindErrors((args as any).table_name);
+        result = await handleFindErrors(args?.table_name as string);
         break;
       case "check_embeddings_status":
         result = await handleCheckEmbeddingsStatus();
         break;
       case "get_slow_rpc_calls":
-        result = await handleGetSlowRpcCalls((args as any).limit);
+        result = await handleGetSlowRpcCalls(args?.limit as number | undefined);
         break;
       case "get_console_logs":
-        result = await handleGetConsoleLogs(args as any);
+        result = await handleGetConsoleLogs(args as Parameters<typeof handleGetConsoleLogs>[0]);
         break;
       case "get_error_logs":
-        result = await handleGetErrorLogs(args as any);
+        result = await handleGetErrorLogs(args as Parameters<typeof handleGetErrorLogs>[0]);
         break;
       case "get_network_metrics":
-        result = await handleGetNetworkMetrics(args as any);
+        result = await handleGetNetworkMetrics(args as Parameters<typeof handleGetNetworkMetrics>[0]);
         break;
       case "get_perf_metrics":
-        result = await handleGetPerfMetrics(args as any);
+        result = await handleGetPerfMetrics(args as Parameters<typeof handleGetPerfMetrics>[0]);
         break;
       default:
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);

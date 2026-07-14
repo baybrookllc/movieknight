@@ -11,6 +11,7 @@
  */
 
 import { createSupabaseServiceClient } from '@/lib/supabase-server';
+import { redactPII, redactContext } from '@/lib/pii-redact';
 
 export interface ServerErrorLogInput {
   errorType: string;
@@ -30,9 +31,9 @@ export async function logServerError(input: ServerErrorLogInput): Promise<void> 
     const { error } = await supabase.from('error_logs').insert({
       user_id: input.userId ?? null,
       error_type: input.errorType,
-      error_message: message.slice(0, 2000),
+      error_message: redactPII(message.slice(0, 2000)),
       stack_trace: stack,
-      context: input.context ?? null,
+      context: input.context ? redactContext(input.context) : null,
       severity: input.severity ?? 'high',
     });
     if (error) {

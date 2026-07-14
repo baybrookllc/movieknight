@@ -12,6 +12,7 @@
  */
 
 import { INGEST_URL, SESSION_STORAGE_KEY, type ErrorEvent } from '@/lib/debug-logger';
+import { redactPII, redactContext } from '@/lib/pii-redact';
 
 function getOrCreateSessionId(): string {
   try {
@@ -33,8 +34,8 @@ export function reportClientError(
     const event: ErrorEvent = {
       type: 'error',
       level: 'error',
-      message: (error.message || 'Unknown error').slice(0, 2000),
-      context: { page: window.location.pathname, digest: error.digest ?? null, ...context },
+      message: redactPII((error.message || 'Unknown error').slice(0, 2000)),
+      context: redactContext({ page: window.location.pathname, digest: error.digest ?? null, ...context }),
       stack: error.stack ?? null,
       timestamp: new Date().toISOString(),
     };

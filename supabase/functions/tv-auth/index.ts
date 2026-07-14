@@ -18,8 +18,15 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { makeCors } from "../_shared/cors-utils.ts";
+import { logEdgeError } from "../_shared/error-logger.ts";
 
 // ── Rate limiting (per-isolate, in-memory) ─────────────────
+// NOTE: this bucket is per-Deno-isolate, not shared across concurrent
+// isolates — if Supabase scales this function horizontally, the effective
+// global rate limit is (per-isolate limit) × (concurrent isolate count),
+// not a hard global cap. A true global limit needs an external store
+// (e.g. Upstash, the pattern already used in app/api/claude/ask/route.ts)
+// — tracked as a known limitation, not silently assumed to be a hard cap.
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(ip: string, action: string, max: number, windowMs: number): boolean {
   const key = `${ip}:${action}`;
@@ -34,8 +41,14 @@ function checkRateLimit(ip: string, action: string, max: number, windowMs: numbe
   return true;
 }
 function getClientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? req.headers.get("cf-connecting-ip")
+  // cf-connecting-ip first: Cloudflare sets this from the actual TCP
+  // connection and strips any client-supplied value of the same name, so
+  // it can't be spoofed. x-forwarded-for's first entry is whatever the
+  // client itself sent and is trivially spoofable (send your own
+  // `X-Forwarded-For: 1.2.3.4` and `.split(",")[0]` trusts it blindly) —
+  // only used as a fallback when there's no trusted edge header at all.
+  return req.headers.get("cf-connecting-ip")
+    ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     ?? "unknown";
 }
 
@@ -58,6 +71,7 @@ Deno.serve(async (req: Request) => {
   const action = url.searchParams.get("action");
   const ip     = getClientIp(req);
 
+  try {
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -164,4 +178,9 @@ Deno.serve(async (req: Request) => {
   }
 
   return json({ error: "Invalid action. Use: create | poll | claim" }, 400);
+  } catch (err) {
+    console.error("tv-auth error:", err);
+    await logEdgeError({ functionName: "tv-auth", error: err, context: { action, ip } });
+    return json({ error: "Internal server error" }, 500);
+  }
 });

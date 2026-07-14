@@ -10,6 +10,22 @@
  *   UPSTASH_REDIS_REST_TOKEN — REST token from Upstash console
  */
 
+import { logEdgeError } from "./error-logger.ts";
+
+// Alert at most once per isolate lifetime — the fail-open condition is
+// static per-isolate (env vars don't change mid-process), so logging it on
+// every single request would just flood error_logs with an identical row.
+let alertedThisIsolate = false;
+function alertFailOpenOnce(key: string): void {
+  if (alertedThisIsolate) return;
+  alertedThisIsolate = true;
+  logEdgeError({
+    functionName: "rate-limit-shared",
+    error: new Error("Rate limiter disabled — UPSTASH env vars not set, all requests allowed"),
+    context: { key },
+  }).catch(() => {});
+}
+
 /**
  * Check whether the caller is within their rate limit.
  *
@@ -35,6 +51,7 @@ export async function checkRateLimit(
     console.warn(
       "[checkRateLimit] UPSTASH env vars not set — allowing request (rate limiter disabled)"
     );
+    alertFailOpenOnce(key);
     return true;
   }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * StreamSocial MCP Server
+ * MovieKnight MCP Server
  *
  * Exposes app-specific tools for development and operations:
  * - app_health: Overall health snapshot (DB, embeddings, edge functions)
@@ -21,7 +21,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABAS
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error("[streamsocial-mcp] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars");
+    console.error("[movieknight-mcp] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars");
     process.exit(1);
 }
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -31,7 +31,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 const TOOLS = [
     {
         name: "app_health",
-        description: "Returns a comprehensive health snapshot of StreamSocial: total titles, embedding coverage, recent activity, user counts. Use this to quickly assess system status.",
+        description: "Returns a comprehensive health snapshot of MovieKnight: total titles, embedding coverage, recent activity, user counts. Use this to quickly assess system status.",
         inputSchema: {
             type: "object",
             properties: {},
@@ -438,8 +438,6 @@ async function handleEdgeFunctionTest(function_name, query_string) {
 }
 // ── Debug tools ───────────────────────────────────────────────────────────────
 async function handleDatabasePerformance(threshold_ms = 100) {
-    // Get table sizes and index information
-    const { data: tables, error: tablesError } = await supabase.rpc("get_table_sizes");
     // For now, return analysis of key tables
     const tableStats = await Promise.all([
         supabase.from("titles").select("*", { count: "exact", head: true }),
@@ -654,7 +652,11 @@ async function handleGetPerfMetrics(args) {
 const server = new Server({ name: "streamsocial-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
+    const { name } = request.params;
+    // Each tool's own inputSchema (declared in TOOLS below) is what actually
+    // validates shape at the MCP layer — this cast just gives call sites a
+    // typed view of already-validated arguments instead of `any`.
+    const args = request.params.arguments;
     try {
         let result;
         switch (name) {
@@ -662,40 +664,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleAppHealth();
                 break;
             case "get_user_stats":
-                result = await handleGetUserStats(args.email);
+                result = await handleGetUserStats(args?.email);
                 break;
             case "seed_titles":
-                result = await handleSeedTitles(args.media_type, args.pages);
+                result = await handleSeedTitles(args?.media_type, args?.pages);
                 break;
             case "backfill_embeddings":
-                result = await handleBackfillEmbeddings(args.limit);
+                result = await handleBackfillEmbeddings(args?.limit);
                 break;
             case "title_lookup":
-                result = await handleTitleLookup(args.title_id);
+                result = await handleTitleLookup(args?.title_id);
                 break;
             case "recent_activity":
-                result = await handleRecentActivity(args.limit);
+                result = await handleRecentActivity(args?.limit);
                 break;
             case "search_catalog":
-                result = await handleSearchCatalog(args.query, args.media_type);
+                result = await handleSearchCatalog(args?.query, args?.media_type);
                 break;
             case "edge_function_test":
-                result = await handleEdgeFunctionTest(args.function_name, args.query_string);
+                result = await handleEdgeFunctionTest(args?.function_name, args?.query_string);
                 break;
             case "database_performance":
-                result = await handleDatabasePerformance(args.threshold_ms);
+                result = await handleDatabasePerformance(args?.threshold_ms);
                 break;
             case "check_table_health":
-                result = await handleCheckTableHealth(args.table_name);
+                result = await handleCheckTableHealth(args?.table_name);
                 break;
             case "find_errors":
-                result = await handleFindErrors(args.table_name);
+                result = await handleFindErrors(args?.table_name);
                 break;
             case "check_embeddings_status":
                 result = await handleCheckEmbeddingsStatus();
                 break;
             case "get_slow_rpc_calls":
-                result = await handleGetSlowRpcCalls(args.limit);
+                result = await handleGetSlowRpcCalls(args?.limit);
                 break;
             case "get_console_logs":
                 result = await handleGetConsoleLogs(args);

@@ -10,6 +10,32 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Same targeted scrub as lib/pii-redact.ts (duplicated here since Deno edge
+// functions can't import from the Next.js app's lib/ path aliases) — emails,
+// bearer/JWT tokens, and inline password/token/secret key-value pairs.
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const JWT_RE = /\beyJ[\w-]+\.[\w-]+\.[\w-]+/g;
+const BEARER_RE = /\bBearer\s+[A-Za-z0-9._-]+/gi;
+const KEY_VALUE_SECRET_RE =
+  /\b(password|passwd|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token)(["']?\s*[:=]\s*["']?)([^"'\s,}&]+)/gi;
+
+function redactPII(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(EMAIL_RE, "[redacted-email]")
+    .replace(BEARER_RE, "Bearer [redacted-token]")
+    .replace(JWT_RE, "[redacted-jwt]")
+    .replace(KEY_VALUE_SECRET_RE, (_m, key, sep) => `${key}${sep}[redacted]`);
+}
+
+function redactContext(context: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...context };
+  for (const key of Object.keys(out)) {
+    if (typeof out[key] === "string") out[key] = redactPII(out[key] as string);
+  }
+  return out;
+}
+
 export interface EdgeErrorInput {
   functionName: string;
   error: unknown;
@@ -31,9 +57,9 @@ export async function logEdgeError(input: EdgeErrorInput): Promise<void> {
     const { error } = await supabase.from("error_logs").insert({
       user_id: input.userId ?? null,
       error_type: `edge_function:${input.functionName}`,
-      error_message: message.slice(0, 2000),
+      error_message: redactPII(message.slice(0, 2000)),
       stack_trace: stack,
-      context: input.context ?? null,
+      context: input.context ? redactContext(input.context) : null,
       severity: "high",
     });
     if (error) {
