@@ -3,8 +3,8 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.9 (Jul 13, 2026 · 13:05 EDT)  
-**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit tests (Vitest) · WCAG-AA keyboard/contrast pass  
+**Current Version:** v6.20 (Jul 14, 2026 · 08:29 EDT)  
+**Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit + e2e tests (Vitest + Playwright) · WCAG-AA keyboard/contrast pass  
 **In progress:** Physical-media commerce vertical — Phase P0 (schema) live on production; UI (P1) next.
 
 > **Where things stand:** a full codebase audit and the completed/remaining
@@ -19,7 +19,7 @@
 
 - **Semantic Search** — Find titles by mood/vibe ("mind-bending thriller", "cozy comfort watch")
 - **Episode Tracking** — Mark individual episodes as watched with persistent state
-- **Smart Browsing** — 9-filter system (Genre, Rating, Year, Format, Platform, Runtime, Country, CVRS, Language)
+- **Smart Browsing** — 8-filter system (Format, Rating, Year, Genre, Runtime, Language, Country, CVRS) — a 9th (Platform) is built but hidden until the streaming-provider data pipeline exists
 - **Trigger Warning Filtering** — Automatically filter browse/search results based on personal trigger preferences (flag/hide)
 - **Content Warnings** — Integration with DoesTheDogDie.com (DTDD) with customizable preferences and filtering
 - **Social Features** — Public/private watchlists, community ratings, share by username
@@ -58,7 +58,7 @@
 
 ```bash
 git clone <repo-url>
-cd Streamsocial
+cd movieknight
 npm install
 ```
 
@@ -85,16 +85,18 @@ Open http://localhost:3000 in your browser.
 ## 📁 Project Structure
 
 ```
-Streamsocial/
+movieknight/
 ├── app/                        # Next.js app router
-│   ├── (app)/                 # Main app layout
+│   ├── (app)/                 # Main app layout (Header/Sidebar/SearchOverlay)
 │   │   ├── browse/            # Browse/filter page
-│   │   ├── mood/              # Semantic search (mood filter)
+│   │   ├── mood/               # Semantic search (mood filter)
 │   │   ├── [titleId]/         # Title detail page
-│   │   ├── lists/             # User's watchlists
-│   │   ├── profile/           # User profile
+│   │   ├── lists/              # User's watchlists
+│   │   ├── profile/            # User profile
 │   │   └── ...
-│   ├── login/                 # Auth pages
+│   ├── (public)/               # Public shell — no auth required
+│   │   ├── login/              # Auth pages
+│   │   └── signup/
 │   └── globals.css
 ├── components/                 # React components
 │   ├── BrowseClient.tsx       # Browse + filters logic
@@ -115,10 +117,12 @@ Streamsocial/
 │       ├── tv-seasons/        # TV episode data
 │       ├── dtdd-fetch/        # Content warnings
 │       └── ...
+├── e2e/                        # Playwright end-to-end tests (see e2e/README.md)
 ├── public/                     # Static assets
 ├── .env.local                 # Local secrets
 ├── package.json
 ├── tsconfig.json
+├── playwright.config.ts
 ├── next.config.js
 └── CLAUDE.md                  # Project guide (agents)
 ```
@@ -213,7 +217,7 @@ git commit -m "feat: Add feature"
 git push origin master
 
 # 3. Automatic deployment happens:
-# → GitHub Actions: lint, type-check, build, security audit
+# → GitHub Actions: lint, type-check, unit tests, e2e tests, build, security audit
 # → GitHub Action: deploy-migrations.yml applies migrations to Supabase
 # → Vercel: auto-deploys to production
 # ✅ Done!
@@ -222,10 +226,11 @@ git push origin master
 ### CI/CD Pipeline
 
 **Active Workflows** (in `.github/workflows/`):
-- `ci.yml` — Lint & TypeScript checks on every push/PR
+- `ci.yml` — lint, type-check, unit tests (Vitest), e2e tests (Playwright), production build + audit, on every push/PR
 - `deploy-migrations.yml` — Auto-apply Supabase migrations on master (v6.1+)
 - `health-check.yml` — 5-minute health monitoring + Slack alerts
 - `deploy-notify.yml` — Post deployment status to PR comments
+- `lighthouse.yml` — Lighthouse CI on every push/PR
 
 **View Workflow Runs:**
 https://github.com/baybrookllc/movieknight/actions
@@ -259,6 +264,20 @@ supabase functions logs semantic-search
 - File: `vercel.ts` (replaces old `vercel.json`)
 - Benefits: Type-safe, environment-aware, dynamic configuration
 - Auto-detected by Vercel — no action needed
+
+---
+
+## 🧪 Testing
+
+```bash
+npm test              # Vitest unit tests (lib/, components/, app/ — 29 tests)
+npm run test:e2e       # Playwright e2e — deterministic tier, no secrets needed
+npm run test:e2e:ui    # Playwright e2e — interactive UI mode for debugging
+```
+
+The e2e suite has a second, opt-in tier (`E2E_LIVE=1 npm run test:e2e`) that
+runs read-only against the real backend — never part of CI. See
+[`e2e/README.md`](e2e/README.md) for the full breakdown of both tiers.
 
 ---
 
