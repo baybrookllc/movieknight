@@ -8,6 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.23, 2026-07-14)
+
+First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
+replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
+scaffold that was copy-pasted across ~14 components and pages.
+
+- **`useAsyncData(fetcher, deps, { initialData, enabled, onError })`** — fetch-on-mount /
+  re-fetch on dep change, exposing `{ data, loading, error, reload }`. Ignores
+  out-of-order responses and post-unmount updates (the ad-hoc versions did neither).
+- **`useAsyncAction(action, { onError, onSuccess })`** — imperative submit/click flows,
+  exposing `{ run, loading, error, reset }`. Actions throw to signal failure.
+- **Migrated (3 of ~14):** `login` + `signup` pages (→ `useAsyncAction`) and
+  `NotificationsClient` (→ `useAsyncData`); behavior-preserving. The Notifications
+  Refresh button now calls the hook's `reload`.
+- The one intentional `set-state-in-effect` lint exception is now confined to this single
+  reviewed utility instead of being scattered across every call site.
+
+Verified: `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `next
+build` green (24 routes). **Not yet exercised in a browser** (sandbox lacks live Supabase
+creds) — recommend an e2e/manual pass on auth + notifications before merge.
+
+**Remaining ~11 call sites** to migrate incrementally: `BrowseClient`, `FriendsClient`,
+`MessagesClient`, `HomeClient`, `TrackerRow`, `TriggerWarnings`, `SearchOverlay`,
+`AskClaude`, `AuthProvider`, `list/[id]`, `profile/[userId]`.
+
+_Note: branched off `master`, so this does not include the v6.22 dead-code cleanup (open
+in a separate PR); `version.ts` / `CHANGELOG.md` will need trivial conflict resolution when
+both land._
+
 ### 🧹 Code tidiness — fix all 31 pre-existing ESLint errors (v6.21, 2026-07-14)
 
 `npm run lint` exited 1 on 31 pre-existing errors (CI's `lint-typecheck` job
