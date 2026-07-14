@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, use } from 'react';
+import { useState, useRef, use } from 'react';
 import Image from 'next/image';
+import { useAsyncData } from '@/lib/hooks/useAsyncData';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -26,9 +27,6 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const [friendData, setFriendData] = useState<FriendProfile | null>(null);
-  const [tasteMatch, setTasteMatch] = useState<{ compatibility_pct: number; titles_in_common: number } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recTitle, setRecTitle] = useState('');
   const [recMsg, setRecMsg] = useState('');
@@ -36,18 +34,23 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
   const recModalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(recModalRef, showRecModal, () => setShowRecModal(false));
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
+  const { data: { friendData, tasteMatch }, loading } = useAsyncData<{
+    friendData: FriendProfile | null;
+    tasteMatch: { compatibility_pct: number; titles_in_common: number } | null;
+  }>(
+    async () => {
       const [profileRes, tasteRes] = await Promise.all([
         supabase.rpc('get_friend_profile', { p_friend_id: userId }),
         supabase.rpc('get_taste_match', { p_friend_id: userId }),
       ]);
-      setFriendData(profileRes.data ?? null);
-      setTasteMatch(tasteRes.data ?? null);
-      setLoading(false);
-    })();
-  }, [user, userId]);
+      return {
+        friendData: profileRes.data ?? null,
+        tasteMatch: tasteRes.data ?? null,
+      };
+    },
+    [user, userId],
+    { initialData: { friendData: null, tasteMatch: null }, enabled: !!user },
+  );
 
   const handleRemoveFriend = async () => {
     await supabase.rpc('remove_friend', { p_user_id: userId });

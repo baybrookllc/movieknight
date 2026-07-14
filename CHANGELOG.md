@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.24, 2026-07-14)
+### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.25, 2026-07-14)
 
 First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
 replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
@@ -19,12 +19,13 @@ scaffold that was copy-pasted across ~14 components and pages.
   out-of-order responses and post-unmount updates (the ad-hoc versions did neither).
 - **`useAsyncAction(action, { onError, onSuccess })`** — imperative submit/click flows,
   exposing `{ run, loading, error, reset }`. Actions throw to signal failure.
-- **Migrated (4):** `login` + `signup` pages (→ `useAsyncAction`), and `NotificationsClient`
-  + `TrackerRow` (→ `useAsyncData`). Behavior-preserving except `TrackerRow`, where the
-  hook's cleaner semantics also **fix two latent bugs**: the logged-out "Sign in to track"
-  prompt is now reachable (it was previously stuck on a perpetual skeleton), and the brief
-  "empty tracker" flash during load is replaced by the loading skeleton. The Notifications
-  Refresh button now calls the hook's `reload`.
+- **Migrated (5):** `login` + `signup` pages (→ `useAsyncAction`), and `NotificationsClient`,
+  `TrackerRow`, and `profile/[userId]` (→ `useAsyncData`; the profile page loads a composite
+  `{ friendData, tasteMatch }`). Behavior-preserving except `TrackerRow`, where the hook's
+  cleaner semantics also **fix two latent bugs**: the logged-out "Sign in to track" prompt is
+  now reachable (it was previously stuck on a perpetual skeleton), and the brief "empty tracker"
+  flash during load is replaced by the loading skeleton. The Notifications Refresh button now
+  calls the hook's `reload`.
 - The one intentional `set-state-in-effect` lint exception is now confined to this single
   reviewed utility instead of being scattered across every call site.
 
@@ -45,11 +46,16 @@ and are intentionally left as-is to avoid regressions:
     `data` immutably (would need a `mutate` / `setData` extension).
   - `AskClaude` — a `loading`+`error`+`answer`+`currentMode` quartet with a custom
     network-error message; more than the clean action shape.
-Genuinely-clean remaining candidates (pending per-file review): `profile/[userId]`,
-`TriggerWarnings`, `SearchOverlay`. The large clients (`HomeClient`, `BrowseClient`,
-`AuthProvider`) are stateful enough that a data layer (SWR / react-query) or a `mutate`
-extension to `useAsyncData` is the right call — a deliberate design decision, not a
-mechanical swap.
+  - `SearchOverlay` — a debounced search engine (custom 350ms debounce, its own `genRef` race
+    guard, dual-source merge, conditional empty-query clearing); bespoke, not boilerplate.
+  - `TriggerWarnings` — loads `enabled`/`topics`/`prefs`, but the toggle and per-topic handlers
+    mutate `enabled`/`prefs` optimistically after save (same immutable-`data` blocker as `list/[id]`).
+
+**The clean set is now exhausted.** Every remaining candidate either mutates its loaded data
+optimistically (`list/[id]`, `TriggerWarnings`, and the large clients) or carries bespoke async
+(`SearchOverlay`, `MessagesClient`, `FriendsClient`, `AskClaude`). Going further is a deliberate
+decision — add a `mutate` / `setData` escape hatch to `useAsyncData`, or adopt a data layer
+(SWR / react-query) for `HomeClient` / `BrowseClient` / `AuthProvider` — not a mechanical swap.
 
 _Note: branched off `master`, so this does not include the v6.22 dead-code cleanup (open
 in a separate PR); `version.ts` / `CHANGELOG.md` will need trivial conflict resolution when
