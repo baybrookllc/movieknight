@@ -8,6 +8,86 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🎭 Remediation Session 6 — Playwright e2e + release tags (v6.20, 2026-07-14)
+
+Closes the last unbuilt item on the original audit's remediation punch list:
+end-to-end tests. Also tags the nine releases (v6.11–v6.19) that shipped
+untagged, and re-affirms the deliberate `unused_index` deferral.
+
+**Added — Playwright e2e (`e2e/`, `playwright.config.ts`).** The project had
+29 Vitest unit tests but zero e2e coverage. Two tiers:
+
+- **Deterministic tier (gates CI, needs no secrets).** Runs against a
+  production `next build && next start` booted with **dummy** Supabase env,
+  and intercepts *every* `*.supabase.co` request at the browser layer
+  (`e2e/support/supabase-mock.ts`) — so it makes **zero** real network calls
+  and is fully reproducible offline. Specs:
+  - `browse-filters.spec.ts` — **regression guards for the two v6.6 browse
+    bugs**: the removed Platform filter stays gone, and "Clear all"
+    visibility exactly tracks active-filter state (the operator-precedence /
+    truthy-string bug). These lock in behaviour the unit tests in
+    `lib/browse-filters.test.ts` only cover at the logic level.
+  - `auth.spec.ts` — login/signup render, required-field validation,
+    invalid-credential error, and successful-login redirect to `/home`.
+  - `search.spec.ts` — the ⌘K/Ctrl+K search overlay opens, renders results,
+    and Enter / "See all" route to `/browse?q=`.
+  - `smoke.spec.ts` — public routes boot without an uncaught exception.
+- **Live tier (opt-in, `E2E_LIVE=1`, never in CI).** `e2e/live/` renders the
+  two SSR pages that fetch server-side and therefore can't be intercepted in
+  the browser — `/home`'s hero and a real title detail page (discovered by
+  clicking a live browse result). Read-only against the real backend; kept
+  out of the CI gate so pull requests never touch production. Verified once
+  locally: both pass.
+
+  Design notes worth recording (each was an actual failure debugged to root
+  cause, not a guess): the deterministic tier runs a **production build, not
+  `next dev`** — `next dev`'s HMR/streaming connection keeps the page `load`
+  event from ever firing, hanging every `page.goto`. All app routes are
+  dynamic, so the build succeeds with a dummy Supabase URL (the failing SSR
+  fetch is caught at request time — `lib/env.ts`'s `validateEnv` only *warns*
+  during the build phase, so a dummy `SUPABASE_SERVICE_ROLE_KEY` is supplied
+  for runtime). Tests navigate with `waitUntil: 'domcontentloaded'` + web-first
+  assertions, run **single-worker** (one `next start` process can't absorb
+  parallel cold-route hits), and open the `dynamic()`-imported search overlay
+  via a `toPass()` retry (its Ctrl+K listener attaches a beat after hydration).
+
+**Added — CI `e2e` job (`.github/workflows/ci.yml`).** Installs the Chromium
+browser, runs the deterministic tier on every push/PR (no secrets), uploads
+the Playwright report as an artifact. `build` now also depends on it
+(`needs: [lint-typecheck, test, e2e]`).
+
+**Added — git tags `v6.11`–`v6.19`**, annotated, against their exact commits
+(`3dfe682`…`4606e62`). Session 1 had tagged v6.1–v6.10; the nine releases
+since were untagged. The tag history is now contiguous v6.1→v6.20.
+
+**Verified — `unused_index` deferral re-affirmed (no DB change).** Re-ran the
+live performance advisor: the flagged indexes are unchanged and still sit
+overwhelmingly on young tables (commerce P0 — `cart_items`, `orders`,
+`listings`, `order_items`, `product_editions`, `shipping_addresses` — and the
+telemetry tables `debug_logs`/`error_logs`/`network_metrics`/
+`performance_metrics`) with no accumulated usage signal. Dropping them now
+would risk removing indexes that matter the moment commerce P1 UI ships, so
+the deferral stands. The scheduled recheck (`movieknight-unused-index-recheck`)
+remains enabled for **2026-09-26**. This closes the item as
+*verified-deferred*, not open.
+
+**Verified:** deterministic e2e green (11/11, ~14s reused-server / ~1m
+full-build in CI mode); live tier green (2/2 against prod). `npm test` still
+29/29, `npx tsc --noEmit` clean (e2e specs + config included and type-check),
+`npm run build` succeeds. The new e2e files and `playwright.config.ts` add
+**zero** ESLint problems.
+
+> **Pre-existing, out of scope, flagged not fixed:** `npm run lint` still exits
+> non-zero on **31 pre-existing errors** (20 `no-explicit-any` plus newer
+> React-Compiler rules — `set-state-in-effect`, etc. — across `AuthProvider`,
+> `BrowseClient`, `MessagesClient`, `list/[id]`, several Deno edge functions,
+> and `claude/hooks/eslint-fix.cjs`). These predate this session (the remainder
+> Session 10 tracked), are none of them in the new e2e code, and several are
+> semantic rules whose "fix" would change runtime behaviour — so they're left
+> for a dedicated, separately-scoped lint pass rather than risking regressions
+> here. CI's `lint-typecheck` job is therefore still red independent of this
+> work; the new `e2e` job runs independently of it.
+
 ### 🧹 Remediation Session 10 — remaining hygiene (v6.19, 2026-07-13)
 
 The last punch-list item from the original audit. Three unrelated cleanups,
