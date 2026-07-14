@@ -30,8 +30,8 @@ scaffold that was copy-pasted across ~14 components and pages.
   reviewed utility instead of being scattered across every call site.
 
 Verified: `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `next build`
-green (24 routes) · **CI E2E (Playwright critical-path) green** on the first batch, which
-exercises the real auth + notifications flows the local sandbox can't (no live Supabase creds).
+green (24 routes) · **CI E2E (Playwright critical-path) green on every push to this branch**,
+exercising the real auth + notifications flows the local sandbox can't (no live Supabase creds).
 
 **Scope refinement:** the audit's "~14 files" counts every component with a `loading`/`error`
 `useState`, but only the *read-only-after-load* and *imperative-action* shapes are clean
