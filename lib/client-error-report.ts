@@ -11,20 +11,8 @@
  * report lands in the same session as any telemetry already collected.
  */
 
-import { INGEST_URL, SESSION_STORAGE_KEY, type ErrorEvent } from '@/lib/debug-logger';
+import { INGEST_URL, getOrCreateSessionId, type ErrorEvent } from '@/lib/debug-logger';
 import { redactPII, redactContext } from '@/lib/pii-redact';
-
-function getOrCreateSessionId(): string {
-  try {
-    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (stored) return stored;
-    const id = crypto.randomUUID();
-    sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-    return id;
-  } catch {
-    return 'unknown';
-  }
-}
 
 export function reportClientError(
   error: Error & { digest?: string },

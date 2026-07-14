@@ -16,10 +16,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { generateText } from 'ai';
 import { createGateway } from '@ai-sdk/gateway';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { logServerError } from '@/lib/server-error-logger';
 
 const RL_MAX = 10;
@@ -96,17 +95,7 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null;
   try {
     // ── 1. Authenticate via Supabase JWT cookie ────────────────────────────
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
+    const supabase = await createSupabaseServerClient();
 
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) {

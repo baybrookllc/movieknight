@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
-import type { Profile, WatchStatus, Conversation, Message, Title, SearchResult } from './types';
+import type { Profile, WatchStatus, Title, SearchResult } from './types';
 
 interface FoundUser {
   id: string;

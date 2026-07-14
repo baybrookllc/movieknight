@@ -8,6 +8,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🏛️ Architecture audit — dead-code removal & duplication collapse (v6.22, 2026-07-14)
+
+Staff-level audit of the core dirs (`app/`, `components/`, `lib/`, `mcp-server/src/`)
+for AI-generation artifacts. Every finding was verified with repo-wide `grep` before
+acting; two candidate findings (duplicated toast logic; unused `ai` package) were
+**refuted** during verification and not touched. This entry covers the safe,
+high-leverage tier that shipped; the larger structural refactors are queued (see
+"Next session").
+
+**Fixed — dependency mismatch (build fragility):**
+- Removed `@anthropic-ai/sdk` from `package.json` — it was declared but imported by
+  **zero** files repo-wide (the Claude assistant migrated to the Vercel AI SDK).
+- Added `@ai-sdk/gateway@3.0.119` as an **explicit** dependency. It was imported
+  directly by `app/api/claude/ask/route.ts` but only present via transitive hoisting
+  through `ai` — a clean/strict install could have broken the build. `npm install`
+  removed 7 now-unreferenced packages.
+
+**Removed — orphaned `lib/` modules (zero importers repo-wide):**
+- Deleted `lib/circuit-breaker.ts` (100L) and `lib/retry.ts` (~80L) — resilience
+  utilities scaffolded but never wired into the app. (The live edge-function copy at
+  `supabase/functions/_shared/circuit-breaker.ts` is untouched.)
+- Pruned unused `Conversation`/`Message` type imports in `lib/store.ts`.
+- (`lib/commerce.ts` left in place pending a product decision on the commerce vertical.)
+
+**Changed — collapsed duplicated logic:**
+- Session-id generation: exported `getOrCreateSessionId()`/`randomId()` from
+  `lib/debug-logger.ts` and reused them in `lib/client-error-report.ts`, which had a
+  near-verbatim copy. Single source of truth for the telemetry session id.
+- Server Supabase client: `getVerifiedUserId()` (`lib/supabase-server.ts`) and
+  `app/api/claude/ask/route.ts` each re-built the cookie-adapter `createServerClient`
+  inline; both now delegate to the existing `createSupabaseServerClient()`.
+
+**Verification:** `tsc --noEmit` clean · `vitest` 29/29 · `eslint` 0 errors ·
+`next build` green (24 routes). Behavior-preserving; no functional change intended.
+
+**Next session (larger refactors, fully specced in the audit plan):** extract a shared
+`useAsyncData()` hook to replace hand-rolled loading/error boilerplate across 14
+components/pages (§1.1); a `callFunction()` edge-function wrapper (§1.2); split the
+833-line `mcp-server/src/index.ts` into tools/handlers/server (§2.1); converge the two
+route conventions by giving the fat client pages (`profile` 318L, `mood` 220L, …) the
+thin-`page.tsx` + `XClient.tsx` split used elsewhere (§2.2/§4.1).
+
 ### 🧹 Code tidiness — fix all 31 pre-existing ESLint errors (v6.21, 2026-07-14)
 
 `npm run lint` exited 1 on 31 pre-existing errors (CI's `lint-typecheck` job
