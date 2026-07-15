@@ -2,7 +2,7 @@
 
 import { useState, useRef, use } from 'react';
 import Image from 'next/image';
-import { useAsyncData } from '@/lib/hooks/useAsyncData';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -34,11 +34,13 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
   const recModalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(recModalRef, showRecModal, () => setShowRecModal(false));
 
-  const { data: { friendData, tasteMatch }, loading } = useAsyncData<{
-    friendData: FriendProfile | null;
-    tasteMatch: { compatibility_pct: number; titles_in_common: number } | null;
-  }>(
-    async () => {
+  const { data, isPending } = useQuery({
+    queryKey: ['friend-profile', userId, user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<{
+      friendData: FriendProfile | null;
+      tasteMatch: { compatibility_pct: number; titles_in_common: number } | null;
+    }> => {
       const [profileRes, tasteRes] = await Promise.all([
         supabase.rpc('get_friend_profile', { p_friend_id: userId }),
         supabase.rpc('get_taste_match', { p_friend_id: userId }),
@@ -48,9 +50,12 @@ export default function FriendProfilePage({ params }: { params: Promise<{ userId
         tasteMatch: tasteRes.data ?? null,
       };
     },
-    [user, userId],
-    { initialData: { friendData: null, tasteMatch: null }, enabled: !!user },
-  );
+  });
+
+  const friendData = data?.friendData ?? null;
+  const tasteMatch = data?.tasteMatch ?? null;
+  // `isPending` stays true while disabled; the `!user` branch renders first anyway.
+  const loading = !!user && isPending;
 
   const handleRemoveFriend = async () => {
     await supabase.rpc('remove_friend', { p_user_id: userId });

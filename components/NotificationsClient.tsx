@@ -1,6 +1,6 @@
 'use client';
 
-import { useAsyncData } from '@/lib/hooks/useAsyncData';
+import { useQuery } from '@tanstack/react-query';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -46,17 +46,27 @@ export default function NotificationsClient() {
   const { user } = useAuth();
   const { refresh: refreshBadges } = useBadges();
 
-  const { data: notifs, loading, reload: loadNotifications } = useAsyncData<NotificationItem[]>(
-    async () => {
+  const { data: notifs = [], isPending, refetch } = useQuery({
+    queryKey: ['notifications', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<NotificationItem[]> => {
       const { data } = await supabase.rpc('get_notifications', { p_limit: 50 });
       // Opening the page (or hitting Refresh) marks all read + updates the badge.
+      // Kept inside the fetcher to preserve the original behaviour; both RPCs are
+      // idempotent, so a revalidation re-running them is harmless.
       await supabase.rpc('mark_notifications_read');
       refreshBadges();
       return data ?? [];
     },
-    [user],
-    { initialData: [], enabled: !!user },
-  );
+  });
+
+  // `isPending` stays true for a disabled query, so gate on `user` — otherwise
+  // the logged-out branch below would never render.
+  const loading = !!user && isPending;
+
+  // Wrapped: passing this straight to onClick would hand refetch() the click
+  // event as its options argument.
+  const loadNotifications = () => { refetch(); };
 
   const handleClick = (n: NotificationItem) => {
     if (n.title_id) router.push(`/${n.title_id}`);

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { useAsyncAction } from '@/lib/hooks/useAsyncData';
+import { useMutation } from '@tanstack/react-query';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -25,10 +25,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const { run: login, loading, error } = useAsyncAction(async () => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    router.push('/home');
+  const { mutate: login, isPending: loading, error } = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => router.push('/home'),
   });
 
   const handleLogin = (e: React.FormEvent) => {

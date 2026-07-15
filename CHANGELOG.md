@@ -8,6 +8,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🗃️ Data layer — adopt TanStack Query; retire `useAsyncData` (v6.27, 2026-07-15)
+
+Phases 0–1 of [`ADAM_DOCS/data-layer-adoption-plan.md`](ADAM_DOCS/data-layer-adoption-plan.md).
+
+**Why a library, and why TanStack over SWR.** The v6.24 `useAsyncData` hook migrated only 5 of the
+audit's ~14 candidates. The 9 that resisted all failed for *cache* reasons, not boilerplate ones:
+optimistic mutation of loaded data (`list/[id]`, `TriggerWarnings`), Realtime + silent background
+refresh (`MessagesClient`), dependent queries (`FriendsClient`), bespoke debounce/race-guard
+(`SearchOverlay`). A hand-rolled hook can't fix those without becoming a cache library.
+
+SWR is smaller (4 KB vs 13 KB) and Next-native — the Next 16 docs even document an SWR↔RSC handoff
+(`<SWRConfig fallback>`). But SWR's sweet spot is *read-heavy apps with simple mutations*, and
+TanStack's is *"mutations, optimistic updates, cache invalidation, dependent queries"* — which is
+verbatim the blocker list above. Chose TanStack (`@tanstack/react-query@5.101.2`); ~9 KB on a
+~180 KB bundle, guarded by Lighthouse CI. The RSC-handoff advantage is currently unused (our server
+pages pass props), and `HydrationBoundary` covers it if we want it later.
+
+**Added**
+- `lib/query-client.ts` — `makeQueryClient()` with defaults tuned to preserve existing behaviour:
+  `staleTime: 60s`, `retry: 1`, `refetchOnWindowFocus: false` (the code this replaces never
+  revalidated at all; enabling focus-refetch would be a visible change no component was written for).
+- `QueryClientProvider` in `app/providers.tsx`, created via `useState` so each SSR request gets its
+  own cache (a module singleton would leak one user's data into another's render).
+
+**Changed — all 5 `useAsyncData` sites migrated**
+- `login`, `signup` → `useMutation`; `TrackerRow`, `NotificationsClient`, `profile/[userId]` → `useQuery`.
+- Behaviour-preserving, including the two `TrackerRow` bugfixes from v6.24.
+
+**Removed**
+- `lib/hooks/useAsyncData.ts` — deleted. Keeping it alongside TanStack would leave two competing
+  data patterns, which is the exact artifact the audit set out to remove. Shipped v6.24 → retired
+  v6.27, but not wasted: attempting it is what surfaced the blocker analysis that chose the library,
+  and its two `TrackerRow` bugfixes survive.
+
+**Gotchas found (documented in the plan for later phases)**
+- `isPending` is `true` for a **disabled** query — every `enabled:` query must gate its spinner
+  (`const loading = !!user && isPending`) or logged-out branches become unreachable.
+- Never pass `refetch` straight to `onClick` — the click event lands as its options argument.
+
+**Verified:** `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `vitest` 29/29 ·
+`next build` green (24 routes). **Next:** Phase 2 — `list/[id]` + `TriggerWarnings` optimistic
+mutations, the actual unlock.
+
 ### 🔑 CI fix — `deploy-notify` can finally post its comment (v6.26, 2026-07-15)
 
 Follow-up to the v6.22 syntax fix. That repair let the workflow's script *compile*, which
