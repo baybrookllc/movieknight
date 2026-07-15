@@ -17,6 +17,12 @@ interface HealthMetricsTabProps {
     users: number;
     editions: number;
     timestamp: string;
+    edgeFunctions: Array<{
+      name: string;
+      desc: string;
+      status: 'online' | 'offline';
+      latency: number;
+    }>;
   };
 }
 
@@ -72,12 +78,28 @@ export default function HealthMetricsTab({ initialMetrics }: HealthMetricsTabPro
           subtitle="Physical media products (Phase P0)"
           status={initialMetrics.editions > 0 ? "online" : "warning"}
         />
-        <MetricCard 
-          title="Edge Functions" 
-          value="Healthy" 
-          subtitle="semantic-search & tmdb-cache"
-          status="online"
-        />
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+          Edge Functions Health
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+          {initialMetrics.edgeFunctions.map(fn => (
+            <div key={fn.name} style={{ padding: 16, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: fn.status === 'online' ? '#10b981' : '#ef4444' }} />
+                  <span style={{ fontSize: 14, fontWeight: 600, fontFamily: 'monospace', color: 'var(--text)' }}>{fn.name}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fn.desc}</div>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: fn.status === 'online' ? 'var(--text-muted)' : '#ef4444' }}>
+                {fn.status === 'online' ? `${fn.latency}ms` : 'Offline'}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-surface-2)', borderRadius: 'var(--radius)' }}>

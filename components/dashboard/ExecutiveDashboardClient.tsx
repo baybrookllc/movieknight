@@ -11,6 +11,12 @@ interface ExecutiveDashboardClientProps {
     users: number;
     editions: number;
     timestamp: string;
+    edgeFunctions: Array<{
+      name: string;
+      desc: string;
+      status: 'online' | 'offline';
+      latency: number;
+    }>;
   };
 }
 

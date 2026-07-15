@@ -32,15 +32,42 @@ export default async function ExecutiveDashboardPage() {
   // We'll just grab counts here to prove DB connectivity.
   const [titlesCount, usersCount, editionsCount] = await Promise.all([
     supabase.from('titles').select('id', { count: 'exact', head: true }).then(r => r.count || 0),
-    supabase.from('profiles').select('id', { count: 'exact', head: true }).then(r => r.count || 0),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).then(r => r.count || 0).catch(() => 0),
     supabase.from('product_editions').select('id', { count: 'exact', head: true }).then(r => r.count || 0)
   ]);
+
+  const functionsToPing = [
+    { name: 'semantic-search', desc: 'AI vibe search via pgvector' },
+    { name: 'tmdb-cache', desc: 'TMDB proxy and rate limiter' },
+    { name: 'generate-embedding', desc: 'Background webhook for new titles' },
+    { name: 'dtdd-fetch', desc: 'Content warnings from DoesTheDogDie' },
+    { name: 'tv-auth', desc: 'Device flow for TV apps' },
+    { name: 'tv-seasons', desc: 'Season/episode metadata proxy' },
+    { name: 'notify-watchlist', desc: 'Cron job for watchlist notifications' },
+    { name: 'delete-account', desc: 'Data wipe for account deletion' },
+    { name: 'health-monitor', desc: 'Synthetic uptime pinger' }
+  ];
+
+  const edgeFunctionsStatus = await Promise.all(
+    functionsToPing.map(async (fn) => {
+      const start = Date.now();
+      try {
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${fn.name}`;
+        const res = await fetch(url, { method: 'OPTIONS', signal: AbortSignal.timeout(3000) });
+        const latency = Date.now() - start;
+        return { ...fn, status: res.ok ? 'online' : 'offline', latency };
+      } catch (e) {
+        return { ...fn, status: 'offline', latency: Date.now() - start };
+      }
+    })
+  );
 
   const initialMetrics = {
     titles: titlesCount,
     users: usersCount,
     editions: editionsCount,
     timestamp: new Date().toISOString(),
+    edgeFunctions: edgeFunctionsStatus,
   };
 
   return <ExecutiveDashboardClient initialMetrics={initialMetrics} />;
