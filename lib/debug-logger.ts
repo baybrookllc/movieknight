@@ -70,6 +70,35 @@ const FLUSH_INTERVAL_MS = 10_000;
 const BUFFER_FLUSH_THRESHOLD = 20;
 export const SESSION_STORAGE_KEY = 'dbg_session_id';
 
+// ── Session ID (module-level; shared with lib/client-error-report.ts) ───────
+
+/** UUID with a non-crypto fallback for older/embedded browsers. */
+export function randomId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+/**
+ * Read the telemetry session id from sessionStorage, creating one if absent.
+ * Single source of truth so error-boundary reports (lib/client-error-report.ts),
+ * which run outside the debugLogger singleton, land in the same session as any
+ * telemetry the singleton has already collected.
+ */
+export function getOrCreateSessionId(): string {
+  try {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) return stored;
+    const id = randomId();
+    sessionStorage.setItem(SESSION_STORAGE_KEY, id);
+    return id;
+  } catch {
+    return randomId();
+  }
+}
+
 // ── Singleton class ────────────────────────────────────────────────────────
 
 class DebugLogger {
@@ -92,7 +121,7 @@ class DebugLogger {
     try {
       this.initialized = true;
       this.userId = userId ?? null;
-      this.sessionId = this.getOrCreateSessionId();
+      this.sessionId = getOrCreateSessionId();
 
       this.interceptConsole();
       this.interceptFetch();
@@ -134,28 +163,6 @@ class DebugLogger {
       this.buffer = [];
     } catch {
       // Never throw
-    }
-  }
-
-  // ── Session ID ────────────────────────────────────────────────────────────
-
-  private getOrCreateSessionId(): string {
-    try {
-      const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (stored) return stored;
-      const id = this.randomId();
-      sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-      return id;
-    } catch {
-      return this.randomId();
-    }
-  }
-
-  private randomId(): string {
-    try {
-      return crypto.randomUUID();
-    } catch {
-      return Math.random().toString(36).slice(2) + Date.now().toString(36);
     }
   }
 

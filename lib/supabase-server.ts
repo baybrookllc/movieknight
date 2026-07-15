@@ -67,15 +67,7 @@ export function createSupabaseServiceClient() {
  */
 export async function getVerifiedUserId(): Promise<string | null> {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const cookieStore = await cookies();
-    const client = createServerClient(url, anonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() { /* read-only */ },
-      },
-    });
+    const client = await createSupabaseServerClient();
     const { data: { user } } = await client.auth.getUser();
     return user?.id ?? null;
   } catch {
