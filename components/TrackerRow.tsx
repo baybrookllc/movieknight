@@ -1,6 +1,6 @@
 'use client';
 
-import { useAsyncData } from '@/lib/hooks/useAsyncData';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
@@ -25,8 +25,10 @@ interface TrackerRowProps {
 }
 
 export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps) {
-  const { data: items, loading } = useAsyncData<TrackerItem[]>(
-    async () => {
+  const { data: items = [], isPending } = useQuery({
+    queryKey: ['tracker-row', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<TrackerItem[]> => {
       const { data, error } = await supabase
         .from('watch_history')
         .select('title_id, status, watched_at, titles(id,title,poster_path,vote_average,media_type)')
@@ -39,13 +41,11 @@ export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps
       if (error) throw error;
       return (data ?? []) as unknown as TrackerItem[];
     },
-    [userId],
-    {
-      initialData: [],
-      enabled: !!userId,
-      onError: (err) => console.error('Failed to load tracker row:', err),
-    },
-  );
+  });
+
+  // `isPending` is true for a disabled query (it has no data and never will
+  // until enabled), so gate on userId to keep the logged-out branch reachable.
+  const loading = !!userId && isPending;
 
   if (!userId && !loading) {
     return (
