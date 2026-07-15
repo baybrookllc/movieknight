@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.25, 2026-07-14)
+### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.24, 2026-07-14)
 
 First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
 replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
@@ -57,9 +57,85 @@ optimistically (`list/[id]`, `TriggerWarnings`, and the large clients) or carrie
 decision — add a `mutate` / `setData` escape hatch to `useAsyncData`, or adopt a data layer
 (SWR / react-query) for `HomeClient` / `BrowseClient` / `AuthProvider` — not a mechanical swap.
 
-_Note: branched off `master`, so this does not include the v6.22 dead-code cleanup (open
-in a separate PR); `version.ts` / `CHANGELOG.md` will need trivial conflict resolution when
-both land._
+### 🏛️ Architecture audit — dead-code removal & duplication collapse (v6.23, 2026-07-14)
+
+Staff-level audit of the core dirs (`app/`, `components/`, `lib/`, `mcp-server/src/`)
+for AI-generation artifacts. Every finding was verified with repo-wide `grep` before
+acting; two candidate findings (duplicated toast logic; unused `ai` package) were
+**refuted** during verification and not touched. This entry covers the safe,
+high-leverage tier that shipped; the larger structural refactors are queued (see
+"Next session").
+
+**Fixed — dependency mismatch (build fragility):**
+- Removed `@anthropic-ai/sdk` from `package.json` — it was declared but imported by
+  **zero** files repo-wide (the Claude assistant migrated to the Vercel AI SDK).
+- Added `@ai-sdk/gateway@3.0.119` as an **explicit** dependency. It was imported
+  directly by `app/api/claude/ask/route.ts` but only present via transitive hoisting
+  through `ai` — a clean/strict install could have broken the build. `npm install`
+  removed 7 now-unreferenced packages.
+
+**Removed — orphaned `lib/` modules (zero importers repo-wide):**
+- Deleted `lib/circuit-breaker.ts` (100L) and `lib/retry.ts` (~80L) — resilience
+  utilities scaffolded but never wired into the app. (The live edge-function copy at
+  `supabase/functions/_shared/circuit-breaker.ts` is untouched.)
+- Pruned unused `Conversation`/`Message` type imports in `lib/store.ts`.
+- `lib/commerce.ts` **kept** (not deleted) — it has no importers yet, but it is the
+  tested money-math foundation of the deployed commerce **P0** (schema live in prod via
+  migration `20260712000001_commerce_schema.sql`, commit `84b6be7`), to be consumed by the
+  not-yet-built P1 shop/cart. Forward-scaffolding, not dead code.
+
+**Changed — collapsed duplicated logic:**
+- Session-id generation: exported `getOrCreateSessionId()`/`randomId()` from
+  `lib/debug-logger.ts` and reused them in `lib/client-error-report.ts`, which had a
+  near-verbatim copy. Single source of truth for the telemetry session id.
+- Server Supabase client: `getVerifiedUserId()` (`lib/supabase-server.ts`) and
+  `app/api/claude/ask/route.ts` each re-built the cookie-adapter `createServerClient`
+  inline; both now delegate to the existing `createSupabaseServerClient()`.
+
+**Verification:** `tsc --noEmit` clean · `vitest` 29/29 · `eslint` 0 errors ·
+`next build` green (24 routes). Behavior-preserving; no functional change intended.
+
+**Next session (larger refactors, fully specced in the audit plan):** extract a shared
+`useAsyncData()` hook to replace hand-rolled loading/error boilerplate across 14
+components/pages (§1.1); a `callFunction()` edge-function wrapper (§1.2); split the
+833-line `mcp-server/src/index.ts` into tools/handlers/server (§2.1); converge the two
+route conventions by giving the fat client pages (`profile` 318L, `mood` 220L, …) the
+thin-`page.tsx` + `XClient.tsx` split used elsewhere (§2.2/§4.1).
+
+### 🔧 CI fix — `deploy-notify` workflow no longer crashes on every deployment (v6.22, 2026-07-14)
+
+The "Notify on Deployment" check was red on **every** deployment (all PRs,
+including master). Root cause was in
+[`.github/workflows/deploy-notify.yml`](.github/workflows/deploy-notify.yml):
+line 30 nested a template literal using **escaped** backticks (`` \` ``)
+*inside* the outer template literal's `${…}` expression:
+
+```js
+`| **URL** | ${url ? \`[${url}](${url})\` : 'N/A'} |`,
+```
+
+In the YAML `script: |` block this reaches `actions/github-script` verbatim,
+so the AsyncFunction body sees `\`` (backslash + backtick) in **expression**
+context — an invalid token — and the whole github-script function failed to
+compile with `SyntaxError: Invalid or unexpected token`, before any of the
+notification logic ran.
+
+**Fix:** dropped the backslashes so the nested template literal uses plain
+backticks (nesting inside `${…}` is valid JS):
+
+```js
+`| **URL** | ${url ? `[${url}](${url})` : 'N/A'} |`,
+```
+
+The escaped backticks on lines 28–29 (`` \`${env}\` ``, `` \`${sha}\` ``) were
+left as-is — those are literal backticks in *string* context (markdown
+inline-code), which is a valid escape; only line 30's were in expression
+context.
+
+**Verified** by compiling the exact `script:` block the way `github-script`
+does — `new AsyncFunction(...params, body)` — which now compiles cleanly and
+previously threw the `SyntaxError`. CI will confirm on the next
+`deployment_status` event.
 
 ### 🧹 Code tidiness — fix all 31 pre-existing ESLint errors (v6.21, 2026-07-14)
 

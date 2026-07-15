@@ -15,7 +15,7 @@
     "usage": "npx ccusage@latest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.96.0",
+    "@ai-sdk/gateway": "3.0.119",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.1",
     "@vercel/analytics": "^2.0.1",
