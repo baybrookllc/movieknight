@@ -8,7 +8,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.24, 2026-07-14)
+### 🔧 MCP server modularity — split the 833-line monolith (v6.25, 2026-07-15)
+
+Audit §2.1: `mcp-server/src/index.ts` mixed three unrelated concerns — 255 lines of tool
+JSON-schema definitions, ~17 async handlers, and server/transport wiring — in one file.
+Split along those seams, no behavior change:
+
+- **`src/tools.ts`** — the `TOOLS` schema array, unchanged.
+- **`src/db.ts`** — Supabase client construction + the shared `queryRecent`/`bucketBy`
+  query helpers.
+- **`src/handlers/ops.ts`** — `app_health`, `get_user_stats`, `seed_titles`,
+  `backfill_embeddings`, `edge_function_test` (operational/admin actions).
+- **`src/handlers/catalog.ts`** — `title_lookup`, `recent_activity`, `search_catalog`.
+- **`src/handlers/debug.ts`** — `database_performance`, `check_table_health`,
+  `find_errors`, `check_embeddings_status`, `get_slow_rpc_calls`.
+- **`src/handlers/telemetry.ts`** — `get_console_logs`, `get_error_logs`,
+  `get_network_metrics`, `get_perf_metrics` (the four handlers built on `queryRecent`).
+- **`src/index.ts`** — now a thin 156-line file: server setup + the `CallTool` dispatch
+  switch, importing everything above.
+
+**Verified:** `tsc` build clean (mcp-server's own `npm run build`); a real MCP client
+(`@modelcontextprotocol/sdk`'s `Client` + `StdioClientTransport`) connected to the
+compiled server over stdio and confirmed `tools/list` returns the identical 17 tools,
+same names, same order, as the pre-split monolith. Root `tsc --noEmit`, `eslint` (0
+errors — the one pre-existing unused-var warning simply relocated to
+`handlers/debug.ts`, same line of code), `vitest` (29/29), and `next build` all still
+green — this directory isn't part of the Next.js app build, confirmed unaffected.
+`mcp-server/dist/` is checked in (`.mcp.json` runs the compiled output directly), so
+the rebuilt `dist/` is committed alongside `src/`.
 
 First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
 replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
