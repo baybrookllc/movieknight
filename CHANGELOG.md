@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🔑 CI fix — `deploy-notify` can finally post its comment (v6.26, 2026-07-15)
+
+Follow-up to the v6.22 syntax fix. That repair let the workflow's script *compile*, which
+then exposed a **second, previously-masked bug**: the job died with
+`403 Resource not accessible by integration` when calling `issues.createComment`. The
+`SyntaxError` had always crashed the script before it ever reached that API call, so this
+never surfaced until v6.22 landed.
+
+**Root cause:** the repo's `default_workflow_permissions` is `read` (confirmed via
+`GET /repos/.../actions/permissions/workflow`), and no workflow declared a `permissions:`
+block — so `GITHUB_TOKEN` had no write scope to comment on the PR.
+
+**Fix:** added a **job-scoped** `permissions:` block to `deploy-notify.yml` only:
+`pull-requests: write` (to post the comment) + `contents: read` (to look up the PR for the
+deployment's commit). Scoped to the one job that needs it rather than raising the repo-wide
+default, which would over-grant every other workflow.
+
+This clears a check that had been red on every PR and deploy since before this work started
+— worth fixing not for tidiness but because a permanently-red check trains everyone to
+ignore CI, hiding real failures.
+
 ### 🔧 MCP server modularity — split the 833-line monolith (v6.25, 2026-07-15)
 
 Audit §2.1: `mcp-server/src/index.ts` mixed three unrelated concerns — 255 lines of tool
