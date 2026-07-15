@@ -1,19 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import { FUNCTIONS_URL, getAuthHeader } from '@/lib/utils';
 import type { DtddTopic } from '@/lib/types';
 
-interface TriggerPref {
-  user_id: string;
-  topic_key: string;
-  action: 'flag' | 'hide';
-}
-
 interface TriggerWarningsProps {
   userId: string;
+}
+
+interface TriggerWarningsData {
+  enabled: boolean;
+  topics: DtddTopic[];
+  prefs: Record<string, 'flag' | 'hide'>;
 }
 
 const card: React.CSSProperties = {
@@ -42,134 +42,122 @@ const topicRow: React.CSSProperties = {
 
 export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
   const { showToast } = useToast();
-  const [enabled, setEnabled] = useState(false);
-  const [topics, setTopics] = useState<DtddTopic[]>([]);
-  const [prefs, setPrefs] = useState<Record<string, 'flag' | 'hide'>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const twQueryKey = ['trigger-warnings', userId];
 
-  useEffect(() => {
-    if (!userId) return;
-    (async () => {
-      try {
-        // 1. Get tw_enabled from profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('tw_enabled')
-          .eq('id', userId)
-          .single();
+  const { data, isPending } = useQuery({
+    queryKey: twQueryKey,
+    enabled: !!userId,
+    queryFn: async (): Promise<TriggerWarningsData> => {
+      // 1. tw_enabled from the profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tw_enabled')
+        .eq('id', userId)
+        .single();
+      const enabled = profile?.tw_enabled ?? false;
 
-        setEnabled(profile?.tw_enabled ?? false);
+      // 2. Recent watched titles (up to 10)
+      const { data: watchHistory } = await supabase
+        .from('watch_history')
+        .select('title_id, titles(id)')
+        .eq('user_id', userId)
+        .in('status', ['watched', 'watching'])
+        .is('episode_season', null)
+        .order('updated_at', { ascending: false })
+        .limit(10);
 
-        // 2. Fetch recent watched titles (up to 10)
-        const { data: watchHistory } = await supabase
-          .from('watch_history')
-          .select('title_id, titles(id)')
-          .eq('user_id', userId)
-          .in('status', ['watched', 'watching'])
-          .is('episode_season', null)
-          .order('updated_at', { ascending: false })
-          .limit(10);
+      const titleIds = (watchHistory ?? []).map(h => h.title_id).filter(Boolean);
+      if (titleIds.length === 0) return { enabled, topics: [], prefs: {} };
 
-        const titleIds = (watchHistory ?? [])
-          .map(h => h.title_id)
-          .filter(Boolean);
+      // 3. dtdd-fetch edge function. A non-OK response is not fatal — the user
+      //    still needs the master toggle, so fall through with no topics.
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${FUNCTIONS_URL}/dtdd-fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ title_ids: titleIds }),
+      });
+      if (!res.ok) return { enabled, topics: [], prefs: {} };
 
-        if (titleIds.length === 0) {
-          setLoading(false);
-          return;
-        }
+      const { topics: fetchedTopics } = await res.json();
+      const topics: DtddTopic[] = fetchedTopics ?? [];
+      if (topics.length === 0) return { enabled, topics, prefs: {} };
 
-        // 3. Call dtdd-fetch edge function
-        const authHeader = await getAuthHeader();
-        const res = await fetch(`${FUNCTIONS_URL}/dtdd-fetch`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeader,
-          },
-          body: JSON.stringify({ title_ids: titleIds }),
-        });
+      // 4. This user's per-topic preferences
+      const { data: userPrefs } = await supabase
+        .from('user_trigger_prefs')
+        .select('topic_key, action')
+        .eq('user_id', userId)
+        .in('topic_key', topics.map(t => t.topicKey));
 
-        if (!res.ok) {
-          setLoading(false);
-          return;
-        }
+      const prefs: Record<string, 'flag' | 'hide'> = {};
+      (userPrefs ?? []).forEach(p => { prefs[p.topic_key] = p.action; });
+      return { enabled, topics, prefs };
+    },
+  });
 
-        const { topics: fetchedTopics } = await res.json();
-        setTopics(fetchedTopics ?? []);
+  const enabled = data?.enabled ?? false;
+  const topics = data?.topics ?? [];
+  const prefs = data?.prefs ?? {};
+  // `isPending` stays true while the query is disabled — gate on userId.
+  const loading = !!userId && isPending;
 
-        // 4. Fetch user preferences
-        if (fetchedTopics && fetchedTopics.length > 0) {
-          const topicKeys = fetchedTopics.map((t: DtddTopic) => t.topicKey);
-          const { data: userPrefs } = await supabase
-            .from('user_trigger_prefs')
-            .select('topic_key, action')
-            .eq('user_id', userId)
-            .in('topic_key', topicKeys);
-
-          const prefsMap: Record<string, 'flag' | 'hide'> = {};
-          (userPrefs ?? []).forEach(pref => {
-            prefsMap[pref.topic_key] = pref.action;
-          });
-          setPrefs(prefsMap);
-        }
-
-        setLoading(false);
-      } catch (err) {
-        console.error('[TriggerWarnings] Error:', err);
-        setLoading(false);
-      }
-    })();
-  }, [userId]);
-
-  const handleToggleTW = async () => {
-    setSaving(true);
-    const newEnabled = !enabled;
-    try {
+  // Both mutations below are optimistic: the control moves the instant you click
+  // it and rolls back if the write fails. Previously the UI only updated *after*
+  // a successful round-trip, so every toggle/flag had a visible lag.
+  const { mutate: toggleTW, isPending: togglingTW } = useMutation({
+    mutationFn: async (newEnabled: boolean) => {
       const { error } = await supabase
         .from('profiles')
         .update({ tw_enabled: newEnabled })
         .eq('id', userId);
+      if (error) throw error;
+      return newEnabled;
+    },
+    onMutate: async (newEnabled) => {
+      await queryClient.cancelQueries({ queryKey: twQueryKey });
+      const previous = queryClient.getQueryData<TriggerWarningsData>(twQueryKey);
+      queryClient.setQueryData<TriggerWarningsData>(twQueryKey, (old) =>
+        old ? { ...old, enabled: newEnabled } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _newEnabled, context) => {
+      if (context?.previous) queryClient.setQueryData(twQueryKey, context.previous);
+      showToast('Failed to save preference', 'error');
+    },
+    onSuccess: (newEnabled) =>
+      showToast(newEnabled ? 'Trigger warnings enabled' : 'Trigger warnings disabled', 'success'),
+  });
 
-      if (error) {
-        showToast('Failed to save preference', 'error');
-      } else {
-        setEnabled(newEnabled);
-        showToast(newEnabled ? 'Trigger warnings enabled' : 'Trigger warnings disabled', 'success');
-      }
-    } catch (err) {
-      showToast('Error updating preference', 'error');
-    }
-    setSaving(false);
-  };
-
-  const handleSetPreference = async (topicKey: string, action: 'flag' | 'hide') => {
-    setSaving(true);
-    try {
+  const { mutate: setPreference, isPending: savingPref } = useMutation({
+    mutationFn: async ({ topicKey, action }: { topicKey: string; action: 'flag' | 'hide' }) => {
       const { error } = await supabase
         .from('user_trigger_prefs')
-        .upsert(
-          {
-            user_id: userId,
-            topic_key: topicKey,
-            action: action,
-          },
-          { onConflict: 'user_id,topic_key' }
-        );
+        .upsert({ user_id: userId, topic_key: topicKey, action }, { onConflict: 'user_id,topic_key' });
+      if (error) throw error;
+      return { topicKey, action };
+    },
+    onMutate: async ({ topicKey, action }) => {
+      await queryClient.cancelQueries({ queryKey: twQueryKey });
+      const previous = queryClient.getQueryData<TriggerWarningsData>(twQueryKey);
+      queryClient.setQueryData<TriggerWarningsData>(twQueryKey, (old) =>
+        old ? { ...old, prefs: { ...old.prefs, [topicKey]: action } } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(twQueryKey, context.previous);
+      showToast('Failed to save preference', 'error');
+    },
+    onSuccess: ({ topicKey, action }) => {
+      const topic = topics.find(t => t.topicKey === topicKey);
+      showToast(`${topic?.topicName || topicKey} ${action === 'hide' ? 'hidden' : 'flagged'}`, 'success');
+    },
+  });
 
-      if (error) {
-        showToast('Failed to save preference', 'error');
-      } else {
-        setPrefs(prev => ({ ...prev, [topicKey]: action }));
-        const topic = topics.find(t => t.topicKey === topicKey);
-        showToast(`${topic?.topicName || topicKey} ${action === 'hide' ? 'hidden' : 'flagged'}`, 'success');
-      }
-    } catch (err) {
-      showToast('Error updating preference', 'error');
-    }
-    setSaving(false);
-  };
+  const saving = togglingTW || savingPref;
 
   if (loading) {
     return (
@@ -196,7 +184,7 @@ export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
           <input
             type="checkbox"
             checked={enabled}
-            onChange={handleToggleTW}
+            onChange={() => toggleTW(!enabled)}
             disabled={saving}
             style={{ cursor: 'pointer' }}
           />
@@ -228,7 +216,7 @@ export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    onClick={() => handleSetPreference(topic.topicKey, 'flag')}
+                    onClick={() => setPreference({ topicKey: topic.topicKey, action: 'flag' })}
                     disabled={saving}
                     style={{
                       padding: '6px 12px',
@@ -244,7 +232,7 @@ export default function TriggerWarnings({ userId }: TriggerWarningsProps) {
                     Flag
                   </button>
                   <button
-                    onClick={() => handleSetPreference(topic.topicKey, 'hide')}
+                    onClick={() => setPreference({ topicKey: topic.topicKey, action: 'hide' })}
                     disabled={saving}
                     style={{
                       padding: '6px 12px',
