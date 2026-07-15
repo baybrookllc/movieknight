@@ -8,6 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🔧 CI fix — `deploy-notify` workflow no longer crashes on every deployment (v6.22, 2026-07-14)
+
+The "Notify on Deployment" check was red on **every** deployment (all PRs,
+including master). Root cause was in
+[`.github/workflows/deploy-notify.yml`](.github/workflows/deploy-notify.yml):
+line 30 nested a template literal using **escaped** backticks (`` \` ``)
+*inside* the outer template literal's `${…}` expression:
+
+```js
+`| **URL** | ${url ? \`[${url}](${url})\` : 'N/A'} |`,
+```
+
+In the YAML `script: |` block this reaches `actions/github-script` verbatim,
+so the AsyncFunction body sees `\`` (backslash + backtick) in **expression**
+context — an invalid token — and the whole github-script function failed to
+compile with `SyntaxError: Invalid or unexpected token`, before any of the
+notification logic ran.
+
+**Fix:** dropped the backslashes so the nested template literal uses plain
+backticks (nesting inside `${…}` is valid JS):
+
+```js
+`| **URL** | ${url ? `[${url}](${url})` : 'N/A'} |`,
+```
+
+The escaped backticks on lines 28–29 (`` \`${env}\` ``, `` \`${sha}\` ``) were
+left as-is — those are literal backticks in *string* context (markdown
+inline-code), which is a valid escape; only line 30's were in expression
+context.
+
+**Verified** by compiling the exact `script:` block the way `github-script`
+does — `new AsyncFunction(...params, body)` — which now compiles cleanly and
+previously threw the `SyntaxError`. CI will confirm on the next
+`deployment_status` event.
+
 ### 🧹 Code tidiness — fix all 31 pre-existing ESLint errors (v6.21, 2026-07-14)
 
 `npm run lint` exited 1 on 31 pre-existing errors (CI's `lint-typecheck` job
