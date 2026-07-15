@@ -8,6 +8,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ♻️ Shared async-state hooks — `useAsyncData` / `useAsyncAction` (v6.24, 2026-07-14)
+
+First slice of the audit's §1.1 consolidation: a single `lib/hooks/useAsyncData.ts`
+replaces the hand-rolled `useState(loading)` / `useState(error)` / `try-catch-finally`
+scaffold that was copy-pasted across ~14 components and pages.
+
+- **`useAsyncData(fetcher, deps, { initialData, enabled, onError })`** — fetch-on-mount /
+  re-fetch on dep change, exposing `{ data, loading, error, reload }`. Ignores
+  out-of-order responses and post-unmount updates (the ad-hoc versions did neither).
+- **`useAsyncAction(action, { onError, onSuccess })`** — imperative submit/click flows,
+  exposing `{ run, loading, error, reset }`. Actions throw to signal failure.
+- **Migrated (5):** `login` + `signup` pages (→ `useAsyncAction`), and `NotificationsClient`,
+  `TrackerRow`, and `profile/[userId]` (→ `useAsyncData`; the profile page loads a composite
+  `{ friendData, tasteMatch }`). Behavior-preserving except `TrackerRow`, where the hook's
+  cleaner semantics also **fix two latent bugs**: the logged-out "Sign in to track" prompt is
+  now reachable (it was previously stuck on a perpetual skeleton), and the brief "empty tracker"
+  flash during load is replaced by the loading skeleton. The Notifications Refresh button now
+  calls the hook's `reload`.
+- The one intentional `set-state-in-effect` lint exception is now confined to this single
+  reviewed utility instead of being scattered across every call site.
+
+Verified: `tsc --noEmit` clean · `eslint` 0 errors/0 warnings on touched files · `next build`
+green (24 routes) · **CI E2E (Playwright critical-path) green on every push to this branch**,
+exercising the real auth + notifications flows the local sandbox can't (no live Supabase creds).
+
+**Scope refinement:** the audit's "~14 files" counts every component with a `loading`/`error`
+`useState`, but only the *read-only-after-load* and *imperative-action* shapes are clean
+`useAsyncData` / `useAsyncAction` swaps. Deeper reading shows several are **not** clean fits
+and are intentionally left as-is to avoid regressions:
+  - `MessagesClient` — calls its loader as a silent background refresh (send / receive /
+    open-thread / realtime); the hook's `reload` toggles `loading`, which would flash the
+    spinner over the list. Also has Realtime subscriptions + optimistic updates.
+  - `FriendsClient` — a tab-parameterized loader feeding five separate arrays behind one
+    `loading` flag, with cross-tab preloads; doesn't map to the hook's single-value model.
+  - `list/[id]` — `removeItem` mutates the loaded list optimistically; the hook owns its
+    `data` immutably (would need a `mutate` / `setData` extension).
+  - `AskClaude` — a `loading`+`error`+`answer`+`currentMode` quartet with a custom
+    network-error message; more than the clean action shape.
+  - `SearchOverlay` — a debounced search engine (custom 350ms debounce, its own `genRef` race
+    guard, dual-source merge, conditional empty-query clearing); bespoke, not boilerplate.
+  - `TriggerWarnings` — loads `enabled`/`topics`/`prefs`, but the toggle and per-topic handlers
+    mutate `enabled`/`prefs` optimistically after save (same immutable-`data` blocker as `list/[id]`).
+
+**The clean set is now exhausted.** Every remaining candidate either mutates its loaded data
+optimistically (`list/[id]`, `TriggerWarnings`, and the large clients) or carries bespoke async
+(`SearchOverlay`, `MessagesClient`, `FriendsClient`, `AskClaude`). Going further is a deliberate
+decision — add a `mutate` / `setData` escape hatch to `useAsyncData`, or adopt a data layer
+(SWR / react-query) for `HomeClient` / `BrowseClient` / `AuthProvider` — not a mechanical swap.
+
 ### 🏛️ Architecture audit — dead-code removal & duplication collapse (v6.23, 2026-07-14)
 
 Staff-level audit of the core dirs (`app/`, `components/`, `lib/`, `mcp-server/src/`)

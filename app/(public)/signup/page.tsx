@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useAsyncAction } from '@/lib/hooks/useAsyncData';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -24,13 +25,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const { run: signup, loading, error } = useAsyncAction(async () => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -38,12 +34,13 @@ export default function SignupPage() {
         data: { display_name: displayName || email.split('@')[0] },
       },
     });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      router.push('/home');
-    }
+    if (error) throw new Error(error.message);
+    router.push('/home');
+  });
+
+  const handleSignup = (e: React.FormEvent) => {
+    e.preventDefault();
+    signup();
   };
 
   return (
@@ -132,7 +129,7 @@ export default function SignupPage() {
           </div>
 
           {error && (
-            <p style={{ color: 'var(--accent)', fontSize: 13, margin: 0 }}>{error}</p>
+            <p style={{ color: 'var(--accent)', fontSize: 13, margin: 0 }}>{error.message}</p>
           )}
 
           <button

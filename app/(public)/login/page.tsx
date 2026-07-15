@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useAsyncAction } from '@/lib/hooks/useAsyncData';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -23,20 +24,16 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const { run: login, loading, error } = useAsyncAction(async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      router.push('/home');
-    }
+    if (error) throw new Error(error.message);
+    router.push('/home');
+  });
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    login();
   };
 
   return (
@@ -112,7 +109,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p style={{ color: 'var(--accent)', fontSize: 13, margin: 0 }}>{error}</p>
+            <p style={{ color: 'var(--accent)', fontSize: 13, margin: 0 }}>{error.message}</p>
           )}
 
           <button

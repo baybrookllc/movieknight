@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useAsyncData } from '@/lib/hooks/useAsyncData';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -45,26 +45,18 @@ export default function NotificationsClient() {
   const router = useRouter();
   const { user } = useAuth();
   const { refresh: refreshBadges } = useBadges();
-  const [notifs, setNotifs] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Early-exit when logged out; not a cascading-render risk, just stops the spinner.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!user) { setLoading(false); return; }
-    loadNotifications();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  async function loadNotifications() {
-    setLoading(true);
-    const { data } = await supabase.rpc('get_notifications', { p_limit: 50 });
-    setNotifs(data ?? []);
-    setLoading(false);
-    // Mark all read
-    await supabase.rpc('mark_notifications_read');
-    refreshBadges();
-  }
+  const { data: notifs, loading, reload: loadNotifications } = useAsyncData<NotificationItem[]>(
+    async () => {
+      const { data } = await supabase.rpc('get_notifications', { p_limit: 50 });
+      // Opening the page (or hitting Refresh) marks all read + updates the badge.
+      await supabase.rpc('mark_notifications_read');
+      refreshBadges();
+      return data ?? [];
+    },
+    [user],
+    { initialData: [], enabled: !!user },
+  );
 
   const handleClick = (n: NotificationItem) => {
     if (n.title_id) router.push(`/${n.title_id}`);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useAsyncData } from '@/lib/hooks/useAsyncData';
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
@@ -25,35 +25,27 @@ interface TrackerRowProps {
 }
 
 export default function TrackerRow({ userId, showLabel = true }: TrackerRowProps) {
-  const [items, setItems] = useState<TrackerItem[]>([]);
-  const [loading, setLoading] = useState(!userId);
+  const { data: items, loading } = useAsyncData<TrackerItem[]>(
+    async () => {
+      const { data, error } = await supabase
+        .from('watch_history')
+        .select('title_id, status, watched_at, titles(id,title,poster_path,vote_average,media_type)')
+        .eq('user_id', userId!)
+        .is('episode_season', null)
+        .in('status', ['watching', 'watched', 'want_to_watch'])
+        .order('watched_at', { ascending: false })
+        .limit(12);
 
-  useEffect(() => {
-    if (!userId) return;
-
-    const load = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('watch_history')
-          .select('title_id, status, watched_at, titles(id,title,poster_path,vote_average,media_type)')
-          .eq('user_id', userId)
-          .is('episode_season', null)
-          .in('status', ['watching', 'watched', 'want_to_watch'])
-          .order('watched_at', { ascending: false })
-          .limit(12);
-
-        if (error) throw error;
-        setItems((data ?? []) as unknown as TrackerItem[]);
-      } catch (err) {
-        console.error('Failed to load tracker row:', err);
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [userId]);
+      if (error) throw error;
+      return (data ?? []) as unknown as TrackerItem[];
+    },
+    [userId],
+    {
+      initialData: [],
+      enabled: !!userId,
+      onError: (err) => console.error('Failed to load tracker row:', err),
+    },
+  );
 
   if (!userId && !loading) {
     return (
