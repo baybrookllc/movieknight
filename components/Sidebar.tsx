@@ -84,6 +84,15 @@ const NAV_ITEMS = [
       <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     ),
   },
+  {
+    href: '/executive-dashboard',
+    label: 'Dashboard (Admin)',
+    auth: true,
+    adminOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+    ),
+  },
 ] as const;
 
 export default function Sidebar() {
@@ -107,8 +116,15 @@ export default function Sidebar() {
             return <div key={i} style={{ flex: 1 }} />;
           }
 
-          const navItem = item as { href: string; label: string; auth?: boolean; badge?: string; icon: React.ReactNode };
+          const navItem = item as { href: string; label: string; auth?: boolean; badge?: string; icon: React.ReactNode; adminOnly?: boolean };
           if (navItem.auth && !user) return null;
+          
+          if (navItem.adminOnly) {
+            const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+            if (!user?.email || !adminEmails.includes(user.email.toLowerCase())) {
+              return null;
+            }
+          }
 
           const isActive = pathname === navItem.href || pathname.startsWith(navItem.href + '/');
           const badgeCount = getBadge(navItem.badge);
