@@ -49,7 +49,7 @@ export default async function ExecutiveDashboardPage() {
   ];
 
   const edgeFunctionsStatus = await Promise.all(
-    functionsToPing.map(async (fn) => {
+    functionsToPing.map(async (fn): Promise<{ name: string; desc: string; status: 'online' | 'offline'; latency: number }> => {
       const start = Date.now();
       try {
         const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${fn.name}`;
