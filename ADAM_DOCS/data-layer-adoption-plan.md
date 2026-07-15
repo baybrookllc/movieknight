@@ -1,6 +1,6 @@
 # Data-Layer Adoption Plan — TanStack Query
 
-**Status:** Phase 0 + 1 **complete** (v6.27). Phases 2–5 not started.
+**Status:** Phases 0–2 **complete** (v6.27, v6.28). Phases 3–5 not started.
 **Author:** Claude · **Date:** 2026-07-15
 
 ## 1. Why this exists
@@ -77,7 +77,7 @@ Each phase = its own PR, version bump, CI E2E gate.
 |---|---|---|
 | **0** | Install `@tanstack/react-query`; `QueryClientProvider` in `app/providers.tsx`; defaults in `lib/query-client.ts` | ✅ **Done** (v6.27) |
 | **1** | Migrate the 5 `useAsyncData` sites → `useQuery`/`useMutation`; **delete `useAsyncData`** | ✅ **Done** (v6.27) |
-| **2** | `list/[id]` + `TriggerWarnings` — the optimistic-mutation unlock (`onMutate`/rollback) | ⬜ Next |
+| **2** | `list/[id]` + `TriggerWarnings` — the optimistic-mutation unlock (`onMutate`/rollback) | ✅ **Done** (v6.28) |
 | **3** | `AuthProvider` **profile half only** (keep `onAuthStateChange`) | ⬜ |
 | **4** | `MessagesClient` (Realtime → `setQueryData`), `FriendsClient` (dependent queries per tab) | ⬜ |
 | **5** | `BrowseClient` / `HomeClient` (`useInfiniteQuery`) + shrink the Zustand store per §3.2 | ⬜ |

@@ -8,6 +8,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ⚡ Data layer Phase 2 — optimistic mutations (v6.28, 2026-07-15)
+
+Phase 2 of [`ADAM_DOCS/data-layer-adoption-plan.md`](ADAM_DOCS/data-layer-adoption-plan.md) — the
+payoff phase. These two components are the ones that **blocked** the v6.24 `useAsyncData` hook (it
+owned `data` immutably, so nothing could optimistically mutate loaded state). `onMutate` + rollback
+is exactly the capability that was missing, and is why TanStack was chosen over SWR.
+
+**Fixed — a real bug in `list/[id]`'s `removeItem`.** The old code was:
+
+```ts
+await supabase.from('list_items').delete().eq('id', itemId);
+setItems(prev => prev.filter(i => i.id !== itemId));  // runs regardless
+showToast('Removed from list');                        // claims success regardless
+```
+
+The delete's `error` was **never checked**, so a failed delete (RLS denial, offline, bad id) still
+removed the row from the UI *and* toasted success — with the item silently reappearing on the next
+load. Now the write is checked, a failure rolls the cache back to its previous state, and the user
+gets `Failed to remove from list` instead of a false success.
+
+**Changed — `list/[id]`**
+- Composite load (`list` + `items`) → one `useQuery`; `notFound`/`isOwner` are now derived rather
+  than duplicated into state (a missing list is not an error — it renders the not-found branch).
+- `removeItem` → `useMutation` with `onMutate` optimistic removal + `onError` rollback.
+- Dropped 5 `useState`s and an effect (plus its two `eslint-disable`s).
+
+**Changed — `TriggerWarnings`**
+- 4-step composite load (profile flag → watch history → `dtdd-fetch` edge function → per-topic
+  prefs) → one `useQuery` returning `{ enabled, topics, prefs }`.
+- Master toggle and per-topic flag/hide → two `useMutation`s, both optimistic with rollback.
+  Previously the UI only updated **after** a successful round-trip, so every click had visible lag;
+  controls now respond instantly and revert if the write fails.
+- Removed the dead `TriggerPref` interface and two unused `err` catch bindings — **lint warnings
+  16 → 13**.
+
+**Verified:** `tsc --noEmit` clean · `eslint` 0 errors / 0 warnings on touched files · `vitest` 29/29 ·
+`next build` green (24 routes).
+
+**Next:** Phase 3 — `AuthProvider`'s **profile half only** (the `onAuthStateChange` listener stays;
+a query cache can't model a push subscription).
+
 ### 🗃️ Data layer — adopt TanStack Query; retire `useAsyncData` (v6.27, 2026-07-15)
 
 Phases 0–1 of [`ADAM_DOCS/data-layer-adoption-plan.md`](ADAM_DOCS/data-layer-adoption-plan.md).

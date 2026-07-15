@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { use } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -18,59 +19,73 @@ interface ListItemWithTitle extends Omit<ListItemRow, 'titles'> {
   titles: NonNullable<ListItemRow['titles']>;
 }
 
+interface ListDetail {
+  list: CustomList | null;
+  items: ListItemWithTitle[];
+}
+
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params); // Next.js 16: params is a Promise
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const [list, setList] = useState<CustomList | null>(null);
-  const [items, setItems] = useState<ListItemWithTitle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function loadList() {
-    setLoading(true);
-    setNotFound(false);
-    const [listRes, itemsRes] = await Promise.all([
-      supabase.from('custom_lists').select('*').eq('id', id).maybeSingle(),
-      supabase.from('list_items')
-        .select('id, added_at, titles(id,title,poster_path,media_type,release_date,vote_average)')
-        .eq('list_id', id)
-        .order('added_at', { ascending: false })
-        .limit(200),
-    ]);
-    if (!listRes.data) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    setList(listRes.data);
-    setIsOwner(listRes.data.owner_id === user?.id);
-    setItems(
-      ((itemsRes.data ?? []) as unknown as ListItemRow[]).filter(
-        (r): r is ListItemWithTitle => r.titles !== null
-      )
-    );
-    setLoading(false);
-  }
+  const listQueryKey = ['list-detail', id, user?.id];
 
-  useEffect(() => {
-    // loadList's own setLoading(true) at its top is what this suppresses;
-    // the effect body itself has no direct setState call.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadList();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  const { data, isPending: loading } = useQuery({
+    queryKey: listQueryKey,
+    queryFn: async (): Promise<ListDetail> => {
+      const [listRes, itemsRes] = await Promise.all([
+        supabase.from('custom_lists').select('*').eq('id', id).maybeSingle(),
+        supabase.from('list_items')
+          .select('id, added_at, titles(id,title,poster_path,media_type,release_date,vote_average)')
+          .eq('list_id', id)
+          .order('added_at', { ascending: false })
+          .limit(200),
+      ]);
+      // A missing list isn't an error — it renders the not-found branch below.
+      if (!listRes.data) return { list: null, items: [] };
+      return {
+        list: listRes.data as CustomList,
+        items: ((itemsRes.data ?? []) as unknown as ListItemRow[]).filter(
+          (r): r is ListItemWithTitle => r.titles !== null
+        ),
+      };
+    },
+  });
 
-  async function removeItem(itemId: string) {
-    await supabase.from('list_items').delete().eq('id', itemId);
-    setItems(prev => prev.filter(i => i.id !== itemId));
-    showToast('Removed from list');
-  }
+  const list = data?.list ?? null;
+  const items = data?.items ?? [];
+  const isOwner = !!list && list.owner_id === user?.id;
+
+  // Optimistic remove. The previous version awaited the delete, ignored its
+  // error, then filtered the item out and toasted success unconditionally — so
+  // a failed delete (e.g. RLS denial) still vanished the row and claimed
+  // success, with the item reappearing on next load. Now the row disappears
+  // immediately, and a failure rolls the cache back and says so.
+  const { mutate: removeItem } = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from('list_items').delete().eq('id', itemId);
+      if (error) throw error;
+    },
+    onMutate: async (itemId: string) => {
+      await queryClient.cancelQueries({ queryKey: listQueryKey });
+      const previous = queryClient.getQueryData<ListDetail>(listQueryKey);
+      queryClient.setQueryData<ListDetail>(listQueryKey, (old) =>
+        old ? { ...old, items: old.items.filter((i) => i.id !== itemId) } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _itemId, context) => {
+      if (context?.previous) queryClient.setQueryData(listQueryKey, context.previous);
+      showToast('Failed to remove from list', 'error');
+    },
+    onSuccess: () => showToast('Removed from list'),
+  });
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
-  if (notFound || !list) {
+  if (!list) {
     return (
       <div className="empty-state">
         <p>This list doesn&apos;t exist or you don&apos;t have access to it.</p>
