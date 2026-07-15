@@ -32,7 +32,7 @@ export default async function ExecutiveDashboardPage() {
   // We'll just grab counts here to prove DB connectivity.
   const [titlesCount, usersCount, editionsCount] = await Promise.all([
     supabase.from('titles').select('id', { count: 'exact', head: true }).then(r => r.count || 0),
-    supabase.from('profiles').select('id', { count: 'exact', head: true }).then(r => r.count || 0).catch(() => 0),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).then(r => r.count || 0),
     supabase.from('product_editions').select('id', { count: 'exact', head: true }).then(r => r.count || 0)
   ]);
 
