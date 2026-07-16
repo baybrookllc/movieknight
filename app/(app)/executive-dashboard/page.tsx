@@ -50,13 +50,16 @@ export default async function ExecutiveDashboardPage() {
 
   const edgeFunctionsStatus = await Promise.all(
     functionsToPing.map(async (fn): Promise<{ name: string; desc: string; status: 'online' | 'offline'; latency: number }> => {
+      // eslint-disable-next-line react-hooks/purity
       const start = Date.now();
       try {
         const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${fn.name}`;
         const res = await fetch(url, { method: 'OPTIONS', signal: AbortSignal.timeout(3000) });
+        // eslint-disable-next-line react-hooks/purity
         const latency = Date.now() - start;
         return { ...fn, status: res.ok ? 'online' : 'offline', latency };
-      } catch (e) {
+      } catch {
+        // eslint-disable-next-line react-hooks/purity
         return { ...fn, status: 'offline', latency: Date.now() - start };
       }
     })
