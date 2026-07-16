@@ -83,3 +83,18 @@ Fixed a bug in `ListsClient.tsx` that caused the "Want to Watch", "Watching", "W
 ### Git Commits
 - **`fix: correctly parse many-to-one joins in ListsClient`**: Addressed empty auto-lists and shared lists due to strict array validation on object payloads.
 - **`fix: resolve react-hooks/purity eslint error causing vercel build failure`**: Suppressed a false-positive ESLint warning in `executive-dashboard/page.tsx` that was causing Vercel deployments to fail.
+
+## Bug Fix: Watch History Save Failure
+**Date:** July 16, 2026
+
+### Overview
+Fixed a critical bug where users were unable to save star ratings or update their watch statuses. The frontend was performing an `upsert` against the `watch_history` table, relying on an `ON CONFLICT` clause. However, the database lacked a unique constraint to match the clause, causing Postgres to throw a `42P10` error ("there is no unique or exclusion constraint matching the ON CONFLICT specification") and silently fail.
+
+### Files Created & Modified
+
+#### 1. Database (Backend)
+- **`supabase/migrations/20260716020000_add_watch_history_unique_constraint.sql`**
+  - **Function**: Created a new database migration to add a `UNIQUE NULLS NOT DISTINCT` constraint covering `(user_id, title_id, episode_season, episode_number)`. Leveraging Postgres 15+ syntax, this correctly treats `NULL` values as duplicate conflicts instead of distinct entities, allowing the `upsert` queries from the frontend to correctly identify and update existing watch history records without failing.
+
+### Git Commits
+- **`fix: add unique constraint to watch_history for upserts`**: Fixed rating and watch status save failures by matching the frontend conflict target to a concrete database constraint.
