@@ -1,4 +1,4 @@
-# Gemini Work Summary: Executive Dashboard
+# Gemini Work Summary
 
 **Date:** July 15, 2026
 **Project:** Movieknight
@@ -46,3 +46,24 @@ To grant a user access to this dashboard locally, update `.env.local`:
 NEXT_PUBLIC_ADMIN_EMAILS="your.email@example.com"
 ```
 For production, ensure the same environment variable is added to the Vercel project settings.
+
+## Feature: Streaming Platform Filter
+**Date:** July 16, 2026
+
+### Overview
+Successfully connected and un-hidden the "Platforms" streaming filter on the `/browse` page. Previously, the pipeline fetched watch-provider data from TMDB and stored it as JSON, but the filter queried an empty relational table (`title_streaming_platforms`), resulting in zero matches. 
+
+### Files Created & Modified
+
+#### 1. Database (Backend)
+- **`supabase/migrations/20260716014553_sync_streaming_platforms.sql`**
+  - **Type**: Postgres Database Migration
+  - **Function**: Created a trigger function `sync_title_streaming_platforms` that fires `AFTER UPDATE OF watch_providers_json ON public.titles`. When the TMDB cache Edge Function fetches new streaming data for a movie/show, this Postgres trigger automatically parses the JSON, extracts the unique provider names (like "Netflix", "Hulu"), looks up their IDs, and keeps the `title_streaming_platforms` junction table perfectly synchronized.
+  - **Backfill**: Included a one-off `DO $$` script that runs upon migration to retroactively populate the table for any existing titles that already had JSON data.
+
+#### 2. Frontend
+- **`components/BrowseClient.tsx`**
+  - **Function**: Removed the block comments hiding the `<FilterDropdown label="Platforms">` component. The filter is now live and actively filters the grid via the `browse_titles` RPC.
+
+### Git Commits
+- **`feat: connect streaming platform filter pipeline`**: Pushed directly to `master`, automatically triggering the `deploy-migrations.yml` GitHub Action to apply the database trigger, and Vercel to deploy the UI.
