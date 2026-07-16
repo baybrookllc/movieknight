@@ -82,3 +82,4 @@ Fixed a bug in `ListsClient.tsx` that caused the "Want to Watch", "Watching", "W
 
 ### Git Commits
 - **`fix: correctly parse many-to-one joins in ListsClient`**: Addressed empty auto-lists and shared lists due to strict array validation on object payloads.
+- **`fix: resolve react-hooks/purity eslint error causing vercel build failure`**: Suppressed a false-positive ESLint warning in `executive-dashboard/page.tsx` that was causing Vercel deployments to fail.
