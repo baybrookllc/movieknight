@@ -13,10 +13,10 @@ import type { CustomList, WatchStatus, Title } from '@/lib/types';
 // ── Local row types matching Supabase join shapes ─────────────────────────────
 type SharedList = CustomList & { role: 'editor' | 'viewer' };
 type WatchHistoryCount = { status: WatchStatus | null };
-type ListMemberRow = { role: 'editor' | 'viewer'; custom_lists: Array<Omit<CustomList, 'is_public'>> | null };
+type ListMemberRow = { role: 'editor' | 'viewer'; custom_lists: Omit<CustomList, 'is_public'> | null };
 type TitleSummary = Pick<Title, 'id' | 'title' | 'poster_path' | 'media_type' | 'release_date' | 'vote_average'>;
-// Supabase returns joined rows as arrays even for foreign-key (many-to-one) joins
-type StatusItem = { title_id: string; watched_at: string; titles: TitleSummary[] | null };
+// Supabase returns joined rows as objects for foreign-key (many-to-one) joins
+type StatusItem = { title_id: string; watched_at: string; titles: TitleSummary | null };
 
 type Tab = 'auto' | 'my-lists' | 'shared';
 
@@ -80,10 +80,10 @@ export default function ListsClient() {
       setCounts(c);
 
       setMyLists((myRes.data ?? []) as CustomList[]);
-      // Supabase returns the foreign join as an array (even though it's 1:1 here)
-      const shared = ((sharedRes.data ?? []) as ListMemberRow[])
-        .filter(m => m.custom_lists && m.custom_lists.length > 0)
-        .map(m => ({ ...m.custom_lists![0], is_public: false, role: m.role }));
+      // Supabase returns the foreign join as an object for foreign-key (many-to-one) joins
+      const shared = ((sharedRes.data ?? []) as unknown as ListMemberRow[])
+        .filter(m => m.custom_lists !== null)
+        .map(m => ({ ...m.custom_lists!, is_public: false, role: m.role }));
       setSharedLists(shared);
     } finally {
       setFetched(true);
@@ -106,7 +106,7 @@ export default function ListsClient() {
       .eq('status', status)
       .is('episode_season', null)
       .order('watched_at', { ascending: false });
-    setStatusItems(((data ?? []) as StatusItem[]).filter(r => r.titles && r.titles.length > 0));
+    setStatusItems(((data ?? []) as unknown as StatusItem[]).filter(r => r.titles !== null));
     setStatusLoading(false);
   }
 
@@ -170,7 +170,7 @@ export default function ListsClient() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
             {statusItems.map((r) => (
-              <TitleCard key={r.title_id} {...(r.titles![0])} status={expandedStatus} />
+              <TitleCard key={r.title_id} {...(r.titles!)} status={expandedStatus} />
             ))}
           </div>
         )}

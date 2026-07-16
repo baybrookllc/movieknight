@@ -67,3 +67,18 @@ Successfully connected and un-hidden the "Platforms" streaming filter on the `/b
 
 ### Git Commits
 - **`feat: connect streaming platform filter pipeline`**: Pushed directly to `master`, automatically triggering the `deploy-migrations.yml` GitHub Action to apply the database trigger, and Vercel to deploy the UI.
+
+## Bug Fix: Lists Client Data Parsing
+**Date:** July 16, 2026
+
+### Overview
+Fixed a bug in `ListsClient.tsx` that caused the "Want to Watch", "Watching", "Watched", and "Shared With Me" lists to display as empty. The issue stemmed from treating many-to-one foreign key join results as arrays instead of objects. 
+
+### Files Modified
+
+#### 1. Frontend
+- **`components/ListsClient.tsx`**
+  - **Function**: Corrected type definitions (`ListMemberRow`, `StatusItem`) and mapping/filtering logic (`.length > 0` -> `!== null`) to properly handle singular object payloads from Supabase. Bypassed incorrect `supabase-js` inferences using an `as unknown as` type cast.
+
+### Git Commits
+- **`fix: correctly parse many-to-one joins in ListsClient`**: Addressed empty auto-lists and shared lists due to strict array validation on object payloads.
