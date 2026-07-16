@@ -513,14 +513,29 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
           ))}
         </FilterDropdown>
 
-        {/*
-          Platform filter hidden until the data pipeline exists. The
-          `browse_titles` RPC filters against `title_streaming_platforms`, which
-          has no writer anywhere in the codebase — so selecting a platform
-          always returned zero results. Re-enable once that table is populated
-          from TMDB watch-providers data.
-          See ADAM_DOCS/movieknight-audit-report.md §2 (Next-milestone item).
-        */}
+        <FilterDropdown label={`Platforms${filters.platforms.length > 0 ? ` (${filters.platforms.length})` : ''}`} isOpen={activeFilter === 'platforms'} onToggle={() => toggle('platforms')} wide>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, maxHeight: 280, overflowY: 'auto' }}>
+            {platformList.map(p => {
+              const active = filters.platforms.includes(p.id);
+              return (
+                <button key={p.id} onClick={() => setFilter('platforms', active ? filters.platforms.filter(x => x !== p.id) : [...filters.platforms, p.id])}
+                  style={{
+                    textAlign: 'left', padding: '7px 10px', fontSize: 12, fontWeight: active ? 600 : 400,
+                    background: active ? 'rgba(255,46,99,0.15)' : 'none',
+                    color: active ? 'var(--accent)' : 'var(--text)',
+                    border: 'none', borderRadius: 4, cursor: 'pointer',
+                  }}>
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+          {filters.platforms.length > 0 && (
+            <button onClick={() => setFilter('platforms', [])} style={{ marginTop: 8, padding: '4px 8px', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Clear platforms
+            </button>
+          )}
+        </FilterDropdown>
 
         {/* Trigger warnings toggle */}
         <label style={{
