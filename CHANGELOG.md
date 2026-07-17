@@ -8,6 +8,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🔧 Audit & remediation of the Gemini work batch (v6.29, 2026-07-17)
+
+Audited every item in `gemini-work.md` against git history, the toolchain, and the live
+Supabase schema, then fixed what didn't hold up. All of the new functionality is preserved —
+Executive Dashboard, streaming filter, bulk edit, infinite scroll, title-card tracking, home
+scroll controls, list/detail fixes — but it now compiles clean, passes CI, and is correct.
+
+**Security**
+- Removed `test-query.ts`, an untracked debug script that hard-coded a live Supabase
+  **service-role secret**. ⚠️ That key should be rotated in the Supabase dashboard.
+
+**Fixed — CI was red on committed code**
+- Resolved all `@typescript-eslint/no-explicit-any` errors introduced by the batch:
+  `components/DetailClient.tsx` (7 — added `WatchProvider`/`WatchProvidersData` types) and
+  `components/AuthProvider.tsx` (1). `npm run lint` and `tsc --noEmit` are green again.
+
+**Fixed — title-card ratings displayed at double value**
+- `AuthProvider.loadWatchHistory` loaded the raw 0–10 DB rating into the store, but `TitleCard`
+  renders `globalRating` as 1–5 stars — so every previously-rated title showed e.g. "8" with all
+  stars filled. Now normalized to `rating / 2`, matching the rest of the app.
+
+**Fixed — Platforms filter only worked for Netflix & Hulu**
+- The sync trigger joined `streaming_platforms.name` to TMDB's `provider_name` by exact string.
+  TMDB emits "Amazon Prime Video", "Disney Plus", "HBO Max", "Paramount Plus", "Peacock Premium",
+  etc., so 8 of 10 platforms never matched. Added `normalize_provider_name()`, rewired the trigger,
+  and re-backfilled (`supabase/migrations/20260717000000_normalize_streaming_platform_names.sql`).
+  Dry-run: matches jump from 2 → 16 provider variants across 7 platforms. **Applies on next
+  migration deploy** (MCP was read-only; not yet live).
+
+**Fixed — `GlobalListModal` React violations**
+- Was calling `setState`+`router.push` during render and `setState` synchronously in an effect.
+  Rewritten to fetch via `useQuery` (matching the TanStack adoption) with the redirect in a `useEffect`.
+
+**Committed — feature files the batch left untracked**
+- `BulkActionBar`, `LoadMoreTrigger`, `GlobalListModal`, six `loading.tsx` boundaries, and
+  `scripts/seed-studios.ts` were referenced by committed code but never committed (a fresh checkout
+  or CI build would fail to resolve them). Now tracked; `seed-studios.ts` `any`s typed properly.
+
+**Notes / not yet done**
+- Commit `85ccabf` is mislabeled `docs:` but carries ~800 lines of feature code; history left as-is.
+- The doc's "Global Search Modal / glassmorphism" commit does not exist and no such change was made.
+- `TitleCard`'s user-rating SVG uses hard-coded `clipPath` ids that repeat per card (invalid HTML,
+  renders fine) — left as a follow-up.
+
 ### ⚡ Data layer Phase 2 — optimistic mutations (v6.28, 2026-07-15)
 
 Phase 2 of [`ADAM_DOCS/data-layer-adoption-plan.md`](ADAM_DOCS/data-layer-adoption-plan.md) — the
