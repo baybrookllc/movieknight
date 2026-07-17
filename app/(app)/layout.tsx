@@ -11,6 +11,8 @@ import DebugProvider from '@/components/DebugProvider';
 
 // Loaded in a separate JS chunk — SearchOverlay renders null when closed
 const SearchOverlay = dynamic(() => import('@/components/SearchOverlay'));
+const GlobalListModal = dynamic(() => import('@/components/GlobalListModal'));
+const BulkActionBar = dynamic(() => import('@/components/BulkActionBar'));
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +33,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <AppFooter />
             </div>
             <SearchOverlay />
+            <GlobalListModal />
+            <BulkActionBar />
           </NavProvider>
         </BadgeProvider>
       </ToastProvider>

@@ -1,15 +1,14 @@
+import { Suspense } from 'react';
 import BrowseClient from '@/components/BrowseClient';
 
-export default async function BrowsePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; format?: string; sort?: string }>;
-}) {
-  const params = await searchParams;
+export default function BrowsePage() {
   return (
-    <BrowseClient
-      initialQuery={params.q ?? ''}
-      initialFormat={params.format ?? ''}
-    />
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
+        <div className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+      </div>
+    }>
+      <BrowseClient />
+    </Suspense>
   );
 }

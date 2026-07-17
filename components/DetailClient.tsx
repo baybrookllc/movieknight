@@ -62,6 +62,22 @@ interface UserList {
 }
 
 
+// Shape of the cached TMDB "watch/providers" blob (normalized into `countries` by tmdb-cache)
+interface WatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+}
+interface WatchProviderCountry {
+  link?: string;
+  flatrate?: WatchProvider[];
+  rent?: WatchProvider[];
+  buy?: WatchProvider[];
+}
+interface WatchProvidersData {
+  countries?: Record<string, WatchProviderCountry>;
+}
+
 interface TmdbTitleData {
   title?: string;
   name?: string;
@@ -78,6 +94,10 @@ interface TmdbTitleData {
   original_language?: string;
   budget?: number;
   revenue?: number;
+  spoken_languages?: string[];
+  writers?: string[];
+  watch_providers_json?: WatchProvidersData | null;
+  awards_json?: AwardsData | null;
   genres?: { id: number; name: string }[];
   cast?: CastMember[];
   [key: string]: unknown;
@@ -102,6 +122,8 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const [detailData, setDetailData] = useState<TmdbTitleData>(data);
+  const [watchProviders, setWatchProviders] = useState<WatchProvidersData | null>(data.watch_providers_json || null);
   const [watchStatus, setWatchStatus] = useState<WatchStatus | ''>('');
   const [showAddToList, setShowAddToList] = useState(false);
   const [myLists, setMyLists] = useState<UserList[]>([]);
@@ -112,7 +134,11 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   const [showTrailer, setShowTrailer] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const [cast, setCast] = useState<CastMember[]>([]);
-  const [awardsData, setAwardsData] = useState<AwardsData | null>(null);
+  const [awardsData, setAwardsData] = useState<AwardsData | null>(
+    data.awards_json && (data.awards_json.total_wins > 0 || data.awards_json.total_nominations > 0) 
+      ? data.awards_json 
+      : null
+  );
   const [awardsOpen, setAwardsOpen] = useState(false);
 
   const addToListRef = useRef<HTMLDivElement>(null);
@@ -124,9 +150,9 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   const decodedTitleId = decodeURIComponent(titleId);
 
   const year = releaseYear(data.release_date);
-  const backdropUrl = data.backdrop_path
-    ? `${TMDB_BACKDROP}${data.backdrop_path}`
-    : data.poster_path ? `${TMDB_BACKDROP}${data.poster_path}` : '';
+  const backdropUrl = detailData.backdrop_path
+    ? `${TMDB_BACKDROP}${detailData.backdrop_path}`
+    : detailData.poster_path ? `${TMDB_BACKDROP}${detailData.poster_path}` : '';
 
   // Load watch history + trailer + cast + awards + seasons in parallel
   useEffect(() => {
@@ -152,20 +178,29 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
       const needsCastFetch = !data.cast?.length;
       if (data.cast?.length) setCast(data.cast.slice(0, 12));
 
-      const [videos, detail, awards, seasons] = await Promise.all([
+      const [videos, detail, awards, seasons, providers] = await Promise.all([
         fetchJson(`${FUNCTIONS_URL}/tmdb-cache?action=videos&tmdb_id=${tmdbId}&media_type=${mediaType}`, authHeader),
         needsCastFetch
           ? fetchJson(`${FUNCTIONS_URL}/tmdb-cache?action=detail&tmdb_id=${tmdbId}&media_type=${mediaType}`, authHeader)
           : Promise.resolve(null),
-        fetchJson(`${FUNCTIONS_URL}/tmdb-cache?action=awards&tmdb_id=${tmdbId}&media_type=${mediaType}`, authHeader),
+        !data.awards_json
+          ? fetchJson(`${FUNCTIONS_URL}/tmdb-cache?action=awards&tmdb_id=${tmdbId}&media_type=${mediaType}`, authHeader)
+          : Promise.resolve(null),
         mediaType === 'tv'
           ? fetchJson(`${FUNCTIONS_URL}/tv-seasons?tmdb_id=${tmdbId}`, authHeader)
+          : Promise.resolve(null),
+        !data.watch_providers_json
+          ? fetchJson(`${FUNCTIONS_URL}/tmdb-cache?action=watch-providers&tmdb_id=${tmdbId}&media_type=${mediaType}`, authHeader)
           : Promise.resolve(null),
       ]);
 
       if (signal.aborted) return;
       if (videos?.trailer?.key) setTrailer(videos.trailer);
-      if (detail?.cast?.length) setCast(detail.cast.slice(0, 12));
+      if (providers) setWatchProviders(providers);
+      if (detail) {
+        setDetailData(prev => ({ ...prev, ...detail }));
+        if (detail.cast?.length) setCast(detail.cast.slice(0, 12));
+      }
       if (awards && (awards.total_wins > 0 || awards.total_nominations > 0)) setAwardsData(awards);
       if (seasons?.seasons) setSeasons(seasons.seasons.filter((s: { season_number: number }) => s.season_number > 0));
     })();
@@ -248,7 +283,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   };
 
   // Handles both TMDB format {id, name} and Supabase join format {genre_id, genres: {name}}
-  const genres: string[] = (data.genres ?? [])
+  const genres: string[] = (detailData.genres ?? [])
     .map((g: string | { name?: string; genres?: { name?: string } }) => typeof g === 'string' ? g : (g.name ?? g.genres?.name ?? null))
     .filter((g): g is string => g != null);
 
@@ -269,7 +304,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-md)',
         }}>
-          <Image src={backdropUrl} alt={data.title ?? ''} fill priority
+          <Image src={backdropUrl} alt={detailData.title ?? ''} fill priority
             sizes="(max-width: 900px) 100vw, 900px"
             style={{ objectFit: 'cover' }} />
           <div style={{
@@ -279,7 +314,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           {/* Overlay title */}
           <div style={{ position: 'absolute', bottom: 24, left: 24, right: 24 }}>
             <h1 style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.2 }}>
-              {data.title}
+              {detailData.title}
             </h1>
           </div>
         </div>
@@ -288,9 +323,9 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
       {/* Main layout: poster + info */}
       <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', marginBottom: 28 }}>
         {/* Poster */}
-        {data.poster_path && (
+        {detailData.poster_path && (
           <div style={{ flexShrink: 0 }}>
-            <Image src={`${TMDB_IMG}${data.poster_path}`} alt={data.title ?? ''}
+            <Image src={`${TMDB_IMG}${detailData.poster_path}`} alt={detailData.title ?? ''}
               width={180} height={270}
               style={{
                 objectFit: 'cover',
@@ -305,7 +340,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
         <div style={{ flex: 1, minWidth: 240 }}>
           {!backdropUrl && (
             <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12 }}>
-              {data.title}
+              {detailData.title}
             </h1>
           )}
 
@@ -319,14 +354,14 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
                 {year}
               </span>
             )}
-            {data.certification_ca && (
+            {detailData.certification_ca && (
               <span style={{ padding: '4px 10px', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>
-                {data.certification_ca}
+                {detailData.certification_ca}
               </span>
             )}
-            {(data.vote_average ?? 0) > 0 && (
+            {(detailData.vote_average ?? 0) > 0 && (
               <span style={{ padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600 }}>
-                ★ {(data.vote_average ?? 0).toFixed(1)}
+                ★ {(detailData.vote_average ?? 0).toFixed(1)}
               </span>
             )}
           </div>
@@ -347,12 +382,12 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           )}
 
           {/* Overview */}
-          {data.overview && (
+          {detailData.overview && (
             <p style={{
               fontSize: 14, lineHeight: 1.6, color: 'rgba(255,255,255,0.85)',
               marginBottom: 20,
             }}>
-              {data.overview}
+              {detailData.overview}
             </p>
           )}
 
@@ -432,7 +467,10 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
       </div>
 
       {/* About section */}
-      <AboutSection data={data} mediaType={mediaType} />
+      <StreamingSection providers={watchProviders} />
+
+      {/* About section */}
+      <AboutSection data={detailData} mediaType={mediaType} />
 
       {/* Cast section */}
       {cast.length > 0 && (
@@ -539,7 +577,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000,
         }} onClick={() => setShowTrailer(false)}>
-          <div ref={trailerRef} role="dialog" aria-modal="true" aria-label={`${data.title} trailer`} tabIndex={-1}
+          <div ref={trailerRef} role="dialog" aria-modal="true" aria-label={`${detailData.title} trailer`} tabIndex={-1}
             style={{ position: 'relative', width: '90vw', maxWidth: 900 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ paddingTop: '56.25%', position: 'relative' }}>
@@ -549,7 +587,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
                 allow="autoplay; fullscreen"
                 sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
                 referrerPolicy="no-referrer"
-                title={`${data.title} trailer`}
+                title={`${detailData.title} trailer`}
               />
             </div>
             <button onClick={() => setShowTrailer(false)} aria-label="Close trailer"
@@ -586,6 +624,14 @@ function AboutSection({ data, mediaType }: { data: TmdbTitleData; mediaType: str
 
   const directors = Array.isArray(data.directors) && data.directors.length ? data.directors.join(', ') : null;
   if (directors) rows.push([mediaType === 'tv' ? 'Created By' : 'Director', directors]);
+
+  const writers = Array.isArray(data.writers) && data.writers.length ? data.writers.join(', ') : null;
+  if (writers) rows.push(['Writer', writers]);
+
+  const language = Array.isArray(data.spoken_languages) && data.spoken_languages.length
+    ? data.spoken_languages.join(', ')
+    : data.original_language ? data.original_language.toUpperCase() : null;
+  if (language) rows.push(['Language', language]);
 
   const budget = fmtMoney(data.budget ?? null);
   if (budget) rows.push(['Budget', budget]);
@@ -626,3 +672,83 @@ function AboutSection({ data, mediaType }: { data: TmdbTitleData; mediaType: str
 // components: SeasonsPanel.tsx and AwardsSection.tsx respectively.
 // They are imported via next/dynamic above — not included in the
 // critical-path bundle.
+
+// ── Streaming Providers section ───────────────────────────────────────────────
+function StreamingSection({ providers }: { providers: WatchProvidersData | null }) {
+  if (!providers?.countries) return null;
+
+  let country = providers.countries.US;
+  if (!country || (!country.flatrate?.length && !country.rent?.length && !country.buy?.length)) {
+    country = providers.countries.CA;
+  }
+  if (!country) return null;
+
+  const flatrate: WatchProvider[] = country.flatrate || [];
+  const rent: WatchProvider[] = country.rent || [];
+  const buy: WatchProvider[] = country.buy || [];
+
+  if (flatrate.length === 0 && rent.length === 0 && buy.length === 0) return null;
+
+  const rentOrBuy: WatchProvider[] = [...rent];
+  for (const b of buy) {
+    if (!rentOrBuy.find((r) => r.provider_id === b.provider_id)) {
+      rentOrBuy.push(b);
+    }
+  }
+
+  return (
+    <section style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+        Where to Watch
+      </h2>
+      
+      {flatrate.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Streaming On</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {flatrate.map((p) => (
+              <div key={p.provider_id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <Image 
+                  src={`https://image.tmdb.org/t/p/w154${p.logo_path}`} 
+                  alt={p.provider_name} 
+                  width={52} height={52} 
+                  style={{ borderRadius: 12, boxShadow: 'var(--shadow-sm)' }} 
+                />
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 64, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.provider_name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {rentOrBuy.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Rent or Buy</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {rentOrBuy.map((p) => (
+              <div key={p.provider_id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <Image 
+                  src={`https://image.tmdb.org/t/p/w154${p.logo_path}`} 
+                  alt={p.provider_name} 
+                  width={52} height={52} 
+                  style={{ borderRadius: 12, boxShadow: 'var(--shadow-sm)' }} 
+                />
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 64, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.provider_name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {country.link && (
+        <a href={country.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}>
+          View all providers on TMDB →
+        </a>
+      )}
+    </section>
+  );
+}

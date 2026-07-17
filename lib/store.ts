@@ -115,6 +115,16 @@ export interface AppStore {
   setSeasonEpisodes: (episodes: { [season: number]: Episode[] }) => void;
 
   // ────────────────────────────────────────────────────────────────────────────
+  // GLOBAL TRACKING (User's Watch History)
+  // ────────────────────────────────────────────────────────────────────────────
+  userWatchStatus: Record<string, WatchStatus>;
+  setUserWatchStatus: (statusMap: Record<string, WatchStatus>) => void;
+  updateUserWatchStatus: (titleId: string, status: WatchStatus | null) => void;
+  userRatings: Record<string, number>;
+  setUserRatings: (ratingMap: Record<string, number>) => void;
+  updateUserRating: (titleId: string, rating: number | null) => void;
+
+  // ────────────────────────────────────────────────────────────────────────────
   // LISTS
   // ────────────────────────────────────────────────────────────────────────────
   currentListId: string | null;
@@ -147,6 +157,15 @@ export interface AppStore {
   // ────────────────────────────────────────────────────────────────────────────
   editProfileSelectedAvatar: string | null;
   setEditProfileSelectedAvatar: (avatar: string | null) => void;
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // BULK EDIT
+  // ────────────────────────────────────────────────────────────────────────────
+  isBulkEditMode: boolean;
+  setBulkEditMode: (mode: boolean) => void;
+  selectedTitleIds: Set<string>;
+  toggleTitleSelection: (id: string) => void;
+  clearBulkSelection: () => void;
 
   // ────────────────────────────────────────────────────────────────────────────
   // CONTENT WARNINGS (TRIGGER WARNINGS)
@@ -274,6 +293,26 @@ export const useAppStore = create<AppStore>((set) => ({
   setSeasonEpisodes: (episodes) => set({ seasonEpisodes: episodes }),
 
   // ────────────────────────────────────────────────────────────────────────────
+  // GLOBAL TRACKING
+  // ────────────────────────────────────────────────────────────────────────────
+  userWatchStatus: {},
+  setUserWatchStatus: (statusMap) => set({ userWatchStatus: statusMap }),
+  updateUserWatchStatus: (titleId, status) => set((state) => {
+    const nextStatus = { ...state.userWatchStatus };
+    if (status) nextStatus[titleId] = status;
+    else delete nextStatus[titleId];
+    return { userWatchStatus: nextStatus };
+  }),
+  userRatings: {},
+  setUserRatings: (ratingMap) => set({ userRatings: ratingMap }),
+  updateUserRating: (titleId, rating) => set((state) => {
+    const nextRatings = { ...state.userRatings };
+    if (rating && rating > 0) nextRatings[titleId] = rating;
+    else delete nextRatings[titleId];
+    return { userRatings: nextRatings };
+  }),
+
+  // ────────────────────────────────────────────────────────────────────────────
   // LISTS
   // ────────────────────────────────────────────────────────────────────────────
   currentListId: null,
@@ -306,6 +345,20 @@ export const useAppStore = create<AppStore>((set) => ({
   // ────────────────────────────────────────────────────────────────────────────
   editProfileSelectedAvatar: null,
   setEditProfileSelectedAvatar: (avatar) => set({ editProfileSelectedAvatar: avatar }),
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // BULK EDIT
+  // ────────────────────────────────────────────────────────────────────────────
+  isBulkEditMode: false,
+  setBulkEditMode: (mode) => set({ isBulkEditMode: mode }),
+  selectedTitleIds: new Set(),
+  toggleTitleSelection: (id) => set((state) => {
+    const nextIds = new Set(state.selectedTitleIds);
+    if (nextIds.has(id)) nextIds.delete(id);
+    else nextIds.add(id);
+    return { selectedTitleIds: nextIds };
+  }),
+  clearBulkSelection: () => set({ selectedTitleIds: new Set(), isBulkEditMode: false }),
 
   // ────────────────────────────────────────────────────────────────────────────
   // CONTENT WARNINGS (TRIGGER WARNINGS)

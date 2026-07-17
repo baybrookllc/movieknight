@@ -4,7 +4,7 @@ import React, { useEffect, useState, createContext, useContext } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/lib/store';
 import type { Session, User } from '@supabase/supabase-js';
-import type { Profile } from '@/lib/types';
+import type { Profile, WatchStatus } from '@/lib/types';
 
 interface AuthContextType {
   session: Session | null;
@@ -32,7 +32,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserProfile,
     currentSession,
     userProfile,
+    setUserWatchStatus,
+    setUserRatings,
   } = useAppStore();
+
+  const loadWatchHistory = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('watch_history')
+        .select('title_id, status, rating')
+        .eq('user_id', userId)
+        .is('episode_season', null);
+
+      if (error) throw error;
+
+      const statusMap: Record<string, WatchStatus> = {};
+      const ratingMap: Record<string, number> = {};
+
+      data.forEach(row => {
+        if (row.status) statusMap[row.title_id] = row.status as WatchStatus;
+        // DB stores ratings on a 0–10 scale; the UI (TitleCard) works in 1–5 stars.
+        if (row.rating && row.rating > 0) ratingMap[row.title_id] = row.rating / 2;
+      });
+
+      setUserWatchStatus(statusMap);
+      setUserRatings(ratingMap);
+    } catch (error) {
+      console.error('Error loading watch history:', error);
+    }
+  };
 
   const loadUserProfile = async (userId: string) => {
     try {
@@ -58,9 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCurrentSession(session);
         if (session?.user?.id) {
           try {
-            await loadUserProfile(session.user.id);
-          } catch (profileErr) {
-            console.error('Profile load error (non-fatal):', profileErr);
+            await Promise.all([
+              loadUserProfile(session.user.id),
+              loadWatchHistory(session.user.id),
+            ]);
+          } catch (err) {
+            console.error('Data load error (non-fatal):', err);
           }
         }
       } catch (error) {
@@ -84,12 +115,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Load profile when user signs in
         if (newId && newId !== prevAuthUserId) {
-          await loadUserProfile(newId);
+          await Promise.all([
+            loadUserProfile(newId),
+            loadWatchHistory(newId),
+          ]);
         }
 
         // Clear profile when user signs out
         if (!newId && prevAuthUserId) {
           setUserProfile(null);
+          setUserWatchStatus({});
+          setUserRatings({});
         }
 
         setPrevAuthUserId(newId);
