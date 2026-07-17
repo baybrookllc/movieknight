@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useId } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { TMDB_IMG, releaseYear } from '@/lib/utils';
@@ -53,6 +53,8 @@ export default function TitleCard({
   const [hoverRating, setHoverRating] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  // Unique per-instance id so each card's rating-badge clipPaths don't collide in a grid
+  const ratingClipId = useId().replace(/:/g, '');
 
   const handleStatusChange = async (e: React.MouseEvent, newStatus: string) => {
     e.preventDefault();
@@ -220,17 +222,17 @@ export default function TitleCard({
             }}>
               <svg width="10" height="10" viewBox="0 0 24 24">
                 <defs>
-                  <clipPath id="left-half">
+                  <clipPath id={`star-${ratingClipId}`}>
                     <rect x="0" y="0" width="12" height="24" />
                   </clipPath>
-                  <clipPath id="right-half">
+                  <clipPath id={`profile-${ratingClipId}`}>
                     <rect x="12" y="0" width="12" height="24" />
                   </clipPath>
                 </defs>
                 {/* Left half: Star */}
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" clipPath="url(#left-half)" fill="#f5c518" />
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" clipPath={`url(#star-${ratingClipId})`} fill="#f5c518" />
                 {/* Right half: Profile (User) */}
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" clipPath="url(#right-half)" fill="#fff" />
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" clipPath={`url(#profile-${ratingClipId})`} fill="#fff" />
               </svg>
               {activeRating}
             </div>

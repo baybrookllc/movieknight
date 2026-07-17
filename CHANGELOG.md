@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🐛 TitleCard rating-badge clipPath ids (v6.30, 2026-07-17)
+
+The user-rating badge's SVG hard-coded `clipPath` ids (`left-half`/`right-half`), so every card
+in a grid emitted the same ids — invalid duplicate DOM ids (it only rendered correctly because
+the clips were identical). Now derived per instance from `useId()`. Also drops an unused
+`useEffect` import.
+
 ### 🔧 Audit & remediation of the Gemini work batch (v6.29, 2026-07-17)
 
 Audited every item in `gemini-work.md` against git history, the toolchain, and the live
