@@ -2,9 +2,11 @@ import { test, expect } from '@playwright/test';
 import { mockSupabase } from './support/supabase-mock';
 
 /**
- * Regression guards for the two browse-filter bugs fixed in v6.6:
- *  1. The Platform filter was removed (its RPC filtered against an unwritten
- *     table, so it always returned zero results). It must stay gone.
+ * Regression guards for browse-filter behaviour:
+ *  1. The Platform filter is now wired up and must render. It was originally
+ *     removed in v6.6 because its RPC filtered against an unwritten table (always
+ *     zero results); the streaming-platform sync (title_streaming_platforms
+ *     trigger + backfill) now populates that table, so the filter is functional.
  *  2. The "Clear all" button had an operator-precedence bug that both hid it
  *     when it should show and leaked a truthy string. Its visibility must track
  *     active-filter state exactly.
@@ -19,8 +21,8 @@ test.describe('Browse filters (regression guards)', () => {
     await expect(page.getByRole('button', { name: /Format/ })).toBeVisible();
   });
 
-  test('the Platform filter is not rendered', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /Platform/i })).toHaveCount(0);
+  test('the Platform filter is rendered', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /Platform/i })).toHaveCount(1);
   });
 
   test('"Clear all" appears only when a filter is active, then resets it', async ({ page }) => {

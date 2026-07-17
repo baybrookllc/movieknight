@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧪 Update stale Platform-filter E2E guard (v6.31, 2026-07-17)
+
+The `browse-filters` E2E regression guard still asserted the Platform filter was **not** rendered
+(it was removed in v6.6 because its RPC queried an unwritten table). That decision was reversed when
+the streaming-platform sync started populating `title_streaming_platforms`, so the guard now
+contradicts intended behaviour and failed CI. Flipped it to assert the filter **is** rendered and
+refreshed the rationale comment. (10/11 E2E already passed; this was the one failure — a stale test,
+not a regression in this branch.)
+
 ### 🐛 TitleCard rating-badge clipPath ids (v6.30, 2026-07-17)
 
 The user-rating badge's SVG hard-coded `clipPath` ids (`left-half`/`right-half`), so every card
