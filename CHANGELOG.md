@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 📝 Documentation sync + branch cleanup (v6.32, 2026-07-17)
+
+Post-merge housekeeping after the audit batch landed on `master` (PR #8):
+- Removed the obsolete `gemini-work.md` work log — its content is preserved in the entries below.
+- **README:** bumped the version banner and corrected the browse feature list — the Platform filter
+  is now live (9 filters), not "built but hidden until the data pipeline exists".
+- **`docs/database.md`:** `watch_providers_json` is read by the UI and synced into
+  `title_streaming_platforms`; documented the `sync_title_streaming_platforms` trigger + normalizer.
+- **`e2e/README.md`, audit report, `docs/site-command-center.html`:** refreshed stale
+  "filter hidden / table unpopulated" statements to reflect the shipped streaming pipeline.
+- Deleted the 7 stale merged branches locally (PRs #1–#7). Remote deletions are gated by the
+  environment's git-safety classifier and need to be run manually.
+
 ### 🧪 Update stale Platform-filter E2E guard (v6.31, 2026-07-17)
 
 The `browse-filters` E2E regression guard still asserted the Platform filter was **not** rendered
@@ -26,7 +39,7 @@ the clips were identical). Now derived per instance from `useId()`. Also drops a
 
 ### 🔧 Audit & remediation of the Gemini work batch (v6.29, 2026-07-17)
 
-Audited every item in `gemini-work.md` against git history, the toolchain, and the live
+Audited every item Gemini had logged (in the since-removed `gemini-work.md`) against git history, the toolchain, and the live
 Supabase schema, then fixed what didn't hold up. All of the new functionality is preserved —
 Executive Dashboard, streaming filter, bulk edit, infinite scroll, title-card tracking, home
 scroll controls, list/detail fixes — but it now compiles clean, passes CI, and is correct.

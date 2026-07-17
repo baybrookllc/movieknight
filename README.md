@@ -3,7 +3,7 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.21 (Jul 14, 2026 · 11:23 EDT)  
+**Current Version:** v6.32 (Jul 17, 2026 · 16:23 EDT)  
 **Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit + e2e tests (Vitest + Playwright) · WCAG-AA keyboard/contrast pass  
 **In progress:** Physical-media commerce vertical — Phase P0 (schema) live on production; UI (P1) next.
 
@@ -19,7 +19,7 @@
 
 - **Semantic Search** — Find titles by mood/vibe ("mind-bending thriller", "cozy comfort watch")
 - **Episode Tracking** — Mark individual episodes as watched with persistent state
-- **Smart Browsing** — 8-filter system (Format, Rating, Year, Genre, Runtime, Language, Country, CVRS) — a 9th (Platform) is built but hidden until the streaming-provider data pipeline exists
+- **Smart Browsing** — 9-filter system (Format, Rating, Year, Genre, Runtime, Language, Country, CVRS, Platform) — the Platform filter matches by streaming availability, synced from TMDB watch-provider data
 - **Trigger Warning Filtering** — Automatically filter browse/search results based on personal trigger preferences (flag/hide)
 - **Content Warnings** — Integration with DoesTheDogDie.com (DTDD) with customizable preferences and filtering
 - **Social Features** — Public/private watchlists, community ratings, share by username

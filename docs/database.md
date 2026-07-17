@@ -41,7 +41,7 @@ Core title catalog from TMDB.
 | `writers` | text[] | YES | |
 | `spoken_languages` | text[] | YES | ISO 639-1 codes |
 | `awards_json` | jsonb | YES | |
-| `watch_providers_json` | jsonb | YES | Raw TMDB watch-provider data — **not currently read by the UI** (see `title_streaming_platforms` below, which the browse filter actually uses) |
+| `watch_providers_json` | jsonb | YES | Raw TMDB watch-provider data — read by the detail page's "Where to Watch" section and synced into `title_streaming_platforms` (below) by an `AFTER UPDATE` trigger that backs the browse Platform filter |
 | `theatrical_ca` | text | YES | Canadian theatrical release date |
 | `theatrical_us` | text | YES | US theatrical release date |
 | `trailers_json` | jsonb | YES | |
@@ -216,7 +216,7 @@ User's trigger warning preferences.
 ---
 
 ### `title_streaming_platforms`
-Titles available on streaming services (future data source: TMDB watch providers).
+Titles available on streaming services. Populated automatically from `titles.watch_providers_json` by the `sync_title_streaming_platforms` trigger, with TMDB provider names normalized to the canonical `streaming_platforms` catalog (`normalize_provider_name`).
 
 | Column | Type | Notes |
 |--------|------|-------|

@@ -671,7 +671,7 @@ supabase
                                 <div class="tech-row"><strong>titles</strong><span>Catalog: id (movie:ID / tv:ID), tmdb_id, title, release_date, vote_average, poster_path, runtime, certification_ca, original_language, origin_country</span></div>
                                 <div class="tech-row"><strong>title_embeddings</strong><span>1 536-dim pgvector per title; linked to titles.id via title_id FK; HNSW index</span></div>
                                 <div class="tech-row"><strong>title_genres</strong><span>Many-to-many: title_id ↔ genre_id; unique constraint; covering index</span></div>
-                                <div class="tech-row"><strong>title_streaming_platforms</strong><span>Streaming availability (added May 15, 2026 — currently unpopulated)</span></div>
+                                <div class="tech-row"><strong>title_streaming_platforms</strong><span>Streaming availability (added May 15, 2026 — auto-synced from watch_providers_json via the sync_title_streaming_platforms trigger)</span></div>
                                 <div class="tech-row"><strong>genres</strong><span>27 genres synced from TMDB</span></div>
                                 <div class="tech-row"><strong>watch_history</strong><span>status (want_to_watch / watching / watched / dropped), rating (int ×2 for half-stars), episode tracking; RLS: owner only</span></div>
                                 <div class="tech-row"><strong>profiles</strong><span>display_name, username, avatar_url, tw_enabled preference; RLS: public read, owner write</span></div>

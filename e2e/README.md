@@ -21,9 +21,10 @@ npm run test:e2e:ui       # interactive UI mode for debugging
 Specs:
 - `auth.spec.ts` — login/signup render, required-field validation, invalid-
   credential error, successful-login redirect to `/home`.
-- `browse-filters.spec.ts` — **regression guards** for the two v6.6 browse bugs:
-  the removed Platform filter stays gone, and "Clear all" visibility tracks
-  active-filter state (the operator-precedence / truthy-string bug).
+- `browse-filters.spec.ts` — **regression guards** for browse-filter behaviour:
+  the Platform filter renders (restored once its streaming-sync pipeline shipped),
+  and "Clear all" visibility tracks active-filter state (the operator-precedence /
+  truthy-string bug).
 - `search.spec.ts` — the ⌘K/Ctrl+K search overlay: opens, renders results,
   Enter and "See all" route to `/browse?q=`.
 - `smoke.spec.ts` — public routes boot without an uncaught exception.

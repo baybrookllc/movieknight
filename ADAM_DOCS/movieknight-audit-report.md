@@ -63,7 +63,7 @@ Work done against this roadmap since the audit. Ten commits on `master`, all pus
 ### Fix now — ✅ complete
 | Item | Status | Where |
 |---|---|---|
-| 1. Streaming-platform filter | ✅ Hidden (always returned zero; pipeline is a milestone item) | v6.6 `ff3031a` |
+| 1. Streaming-platform filter | ✅ Live — sync pipeline (`title_streaming_platforms` trigger + `normalize_provider_name`) ships real results; the filter is restored and rendered | v6.6 `ff3031a`, v6.29–v6.31 |
 | 2. Browse "Clear all" button | ✅ Fixed (precedence + boolean) | v6.6 `ff3031a` |
 | 3. `robots.txt` + `sitemap.xml` | ✅ Added (`app/robots.ts`, `app/sitemap.ts`) | v6.6 `ff3031a` |
 | 4. Test harness + smoke tests | ✅ Vitest harness + 29 unit tests + CI `test` job (v6.6), **plus Playwright e2e** (deterministic tier gates CI + opt-in live tier; regression guards for items 1 & 2; auth/search/smoke coverage) | v6.6 `ff3031a`, Session 6 v6.20 |
