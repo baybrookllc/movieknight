@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🏛️ Route-convention convergence — thin `page.tsx` + `XClient.tsx` everywhere (v6.33, 2026-07-17)
+
+The last unshipped structural refactor queued by the v6.23 audit (§2.2/§4.1). The seven remaining
+fat `'use client'` pages now follow the thin server-`page.tsx` + client-component split the rest of
+the app uses (`home/`, `browse/`, `lists/`, …), retiring the fat-client-page convention repo-wide.
+
+**Changed — behavior-preserving split (`git mv`, bodies untouched):**
+- `profile` (318L), `mood` (220L), `profile/[userId]` (194L), `signup` (156L), `list/[id]` (144L),
+  `login` (136L), `for-you` (122L): each `page.tsx` moved to a colocated `XClient.tsx`
+  (e.g. `app/(app)/profile/ProfileClient.tsx`, following the `home/HomeClient.tsx` placement;
+  existing `components/*Client.tsx` deliberately not relocated) with a new thin server `page.tsx`
+  rendering it.
+- Dynamic routes: the server pages now `await params` and pass plain `userId`/`listId` string
+  props, so `FriendProfileClient` and `ListDetailClient` drop the client-side `use(params)`
+  workaround.
+
+**Added — per-route static metadata** (pattern from `executive-dashboard/page.tsx`) on the five
+static routes: Profile, Mood Explorer, For You, Log In, Sign Up — previously all seven routes fell
+back to the root-layout title.
+
 ### 📝 Documentation sync + branch cleanup (v6.32, 2026-07-17)
 
 Post-merge housekeeping after the audit batch landed on `master` (PR #8):
