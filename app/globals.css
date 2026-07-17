@@ -685,6 +685,9 @@ img { max-width: 100%; }
   margin-bottom: 16px;
 }
 
+.desktop-controls { display: flex; }
+.mobile-controls { display: none; }
+
 .section-title {
   font-size: 16px;
   font-weight: 700;
@@ -764,4 +767,8 @@ img { max-width: 100%; }
 
   /* Surprise Me text hidden on small screens */
   .surprise-me-label { display: none; }
+
+  /* Controls */
+  .desktop-controls { display: none !important; }
+  .mobile-controls { display: inline !important; }
 }

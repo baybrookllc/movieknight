@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import TrackerRow from '@/components/TrackerRow';
+import TitleCard from '@/components/TitleCard';
 import { FUNCTIONS_URL, TMDB_BACKDROP, TMDB_IMG, truncate, getAvatarUrl, timeAgo, getAuthHeader } from '@/lib/utils';
 import { activateOnKey, useFocusTrap } from '@/lib/a11y';
 
@@ -632,43 +633,49 @@ export default function HomeClient({ initialMatch, initialQuickPicks }: HomeClie
           <div>
             <div className="section-header">
               <h3 className="section-title">Quick picks for you</h3>
-              <span role="button" tabIndex={0} aria-label="Show more recommendations"
+              <div className="desktop-controls" style={{ gap: 12, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button aria-label="Scroll left" className="btn btn-ghost" style={{ padding: '4px 8px', minWidth: 0, height: 24, borderRadius: 'var(--radius)' }} onClick={() => {
+                    document.getElementById('quick-picks-scroll')?.scrollBy({ left: -300, behavior: 'smooth' });
+                  }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  </button>
+                  <button aria-label="Scroll right" className="btn btn-ghost" style={{ padding: '4px 8px', minWidth: 0, height: 24, borderRadius: 'var(--radius)' }} onClick={() => {
+                    document.getElementById('quick-picks-scroll')?.scrollBy({ left: 300, behavior: 'smooth' });
+                  }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </div>
+                <span role="button" tabIndex={0} aria-label="Refresh recommendations"
+                  style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+                  onClick={() => loadRecommendation(activeMood)}
+                  onKeyDown={activateOnKey(() => loadRecommendation(activeMood))}>
+                  Refresh picks ↻
+                </span>
+              </div>
+              <span className="mobile-controls" role="button" tabIndex={0} aria-label="Show more recommendations"
                 style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
                 onClick={() => loadRecommendation(activeMood)}
                 onKeyDown={activateOnKey(() => loadRecommendation(activeMood))}>
                 Swipe to explore more →
               </span>
             </div>
-            <div className="quick-picks-row">
+            <div id="quick-picks-scroll" className="quick-picks-row">
               {quickPicks.map(p => {
                 const pct = p.similarity != null
                   ? Math.round(70 + (p.similarity * 29)) // rescale cosine → 70–99%
                   : Math.min(99, Math.round(((p.vote_average ?? 0) / 10) * 100 * 0.85 + 15));
                 return (
-                  <div
-                    key={p.id}
-                    className="quick-pick-card"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`View ${p.title}`}
-                    onClick={() => router.push(`/${p.id}`)}
-                    onKeyDown={activateOnKey(() => router.push(`/${p.id}`))}
-                  >
-                    {p.poster_path ? (
-                      <Image
-                        src={`${TMDB_IMG}${p.poster_path}`}
-                        alt={p.title}
-                        width={140}
-                        height={200}
-                        loading="lazy"
-                        style={{ objectFit: 'cover', display: 'block' }}
-                      />
-                    ) : (
-                      <div style={{ width: 140, height: 200, background: 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)', padding: 8, textAlign: 'center' }}>
-                        {p.title}
-                      </div>
-                    )}
-                    <div className="quick-pick-badge">{pct}% Match</div>
+                  <div key={p.id} style={{ position: 'relative', flexShrink: 0 }}>
+                    <TitleCard
+                      id={p.id}
+                      title={p.title}
+                      poster_path={p.poster_path}
+                      media_type={p.id.split(':')[0] as 'movie' | 'tv'}
+                      vote_average={p.vote_average}
+                      size="md"
+                    />
+                    <div className="quick-pick-badge" style={{ pointerEvents: 'none', zIndex: 20, top: 4, left: 4, bottom: 'auto' }}>{pct}% Match</div>
                   </div>
                 );
               })}

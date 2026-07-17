@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, startTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 
 import TitleCard from '@/components/TitleCard';
+import LoadMoreTrigger from '@/components/LoadMoreTrigger';
 import type { Title, DtddTopic } from '@/lib/types';
 import {
   type FilterState,
@@ -15,10 +17,7 @@ import {
   buildBrowseParams,
 } from '@/lib/browse-filters';
 
-interface BrowseClientProps {
-  initialQuery: string;
-  initialFormat: string;
-}
+
 
 /* ── Filter helper components ─────────────────────────────────── */
 const DD_STYLE: React.CSSProperties = {
@@ -65,7 +64,10 @@ function FilterOpt({ label, active, onClick }: { label: string; active: boolean;
 }
 
 /* ── Main component ───────────────────────────────────────────── */
-export default function BrowseClient({ initialQuery, initialFormat }: BrowseClientProps) {
+export default function BrowseClient() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? '';
+  const initialFormat = searchParams.get('format') ?? '';
   const { user } = useAuth();
   const [query, setQuery] = useState(initialQuery);
   const [inputVal, setInputVal] = useState(initialQuery);
@@ -631,11 +633,11 @@ export default function BrowseClient({ initialQuery, initialFormat }: BrowseClie
       )}
 
       {hasMore && !query && (
-        <div style={{ textAlign: 'center', marginTop: 32 }}>
-          <button className="btn" onClick={() => runSearch(true)} disabled={loading} style={{ minWidth: 140 }}>
-            {loading ? 'Loading…' : 'Load More'}
-          </button>
-        </div>
+        <LoadMoreTrigger
+          hasMore={hasMore}
+          loading={loading}
+          onLoadMore={() => runSearch(true)}
+        />
       )}
     </div>
   );
