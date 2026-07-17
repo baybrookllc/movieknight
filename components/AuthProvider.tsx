@@ -4,7 +4,7 @@ import React, { useEffect, useState, createContext, useContext } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/lib/store';
 import type { Session, User } from '@supabase/supabase-js';
-import type { Profile } from '@/lib/types';
+import type { Profile, WatchStatus } from '@/lib/types';
 
 interface AuthContextType {
   session: Session | null;
@@ -46,12 +46,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      const statusMap: Record<string, any> = {};
+      const statusMap: Record<string, WatchStatus> = {};
       const ratingMap: Record<string, number> = {};
 
       data.forEach(row => {
-        if (row.status) statusMap[row.title_id] = row.status;
-        if (row.rating && row.rating > 0) ratingMap[row.title_id] = row.rating;
+        if (row.status) statusMap[row.title_id] = row.status as WatchStatus;
+        // DB stores ratings on a 0–10 scale; the UI (TitleCard) works in 1–5 stars.
+        if (row.rating && row.rating > 0) ratingMap[row.title_id] = row.rating / 2;
       });
 
       setUserWatchStatus(statusMap);

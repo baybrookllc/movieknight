@@ -62,6 +62,22 @@ interface UserList {
 }
 
 
+// Shape of the cached TMDB "watch/providers" blob (normalized into `countries` by tmdb-cache)
+interface WatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+}
+interface WatchProviderCountry {
+  link?: string;
+  flatrate?: WatchProvider[];
+  rent?: WatchProvider[];
+  buy?: WatchProvider[];
+}
+interface WatchProvidersData {
+  countries?: Record<string, WatchProviderCountry>;
+}
+
 interface TmdbTitleData {
   title?: string;
   name?: string;
@@ -80,8 +96,8 @@ interface TmdbTitleData {
   revenue?: number;
   spoken_languages?: string[];
   writers?: string[];
-  watch_providers_json?: any;
-  awards_json?: any;
+  watch_providers_json?: WatchProvidersData | null;
+  awards_json?: AwardsData | null;
   genres?: { id: number; name: string }[];
   cast?: CastMember[];
   [key: string]: unknown;
@@ -107,7 +123,7 @@ export default function DetailClient({ titleId, mediaType, data }: DetailClientP
   const { user } = useAuth();
   const { showToast } = useToast();
   const [detailData, setDetailData] = useState<TmdbTitleData>(data);
-  const [watchProviders, setWatchProviders] = useState<any>(data.watch_providers_json || null);
+  const [watchProviders, setWatchProviders] = useState<WatchProvidersData | null>(data.watch_providers_json || null);
   const [watchStatus, setWatchStatus] = useState<WatchStatus | ''>('');
   const [showAddToList, setShowAddToList] = useState(false);
   const [myLists, setMyLists] = useState<UserList[]>([]);
@@ -658,24 +674,24 @@ function AboutSection({ data, mediaType }: { data: TmdbTitleData; mediaType: str
 // critical-path bundle.
 
 // ── Streaming Providers section ───────────────────────────────────────────────
-function StreamingSection({ providers }: { providers: any }) {
+function StreamingSection({ providers }: { providers: WatchProvidersData | null }) {
   if (!providers?.countries) return null;
-  
+
   let country = providers.countries.US;
   if (!country || (!country.flatrate?.length && !country.rent?.length && !country.buy?.length)) {
     country = providers.countries.CA;
   }
   if (!country) return null;
 
-  const flatrate = country.flatrate || [];
-  const rent = country.rent || [];
-  const buy = country.buy || [];
+  const flatrate: WatchProvider[] = country.flatrate || [];
+  const rent: WatchProvider[] = country.rent || [];
+  const buy: WatchProvider[] = country.buy || [];
 
   if (flatrate.length === 0 && rent.length === 0 && buy.length === 0) return null;
 
-  const rentOrBuy = [...rent];
+  const rentOrBuy: WatchProvider[] = [...rent];
   for (const b of buy) {
-    if (!rentOrBuy.find((r: any) => r.provider_id === b.provider_id)) {
+    if (!rentOrBuy.find((r) => r.provider_id === b.provider_id)) {
       rentOrBuy.push(b);
     }
   }
@@ -690,7 +706,7 @@ function StreamingSection({ providers }: { providers: any }) {
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Streaming On</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {flatrate.map((p: any) => (
+            {flatrate.map((p) => (
               <div key={p.provider_id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <Image 
                   src={`https://image.tmdb.org/t/p/w154${p.logo_path}`} 
@@ -711,7 +727,7 @@ function StreamingSection({ providers }: { providers: any }) {
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Rent or Buy</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {rentOrBuy.map((p: any) => (
+            {rentOrBuy.map((p) => (
               <div key={p.provider_id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <Image 
                   src={`https://image.tmdb.org/t/p/w154${p.logo_path}`} 
