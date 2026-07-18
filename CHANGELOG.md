@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### ⚡ Movie-matching refactor (v6.33, 2026-07-17)
+### ⚡ Movie-matching refactor (v6.34, 2026-07-17)
 
 Scoped audit of the matching/recommendation code paths (branch `refactor/movie-matching-optimization`);
 only necessary/useful items were changed, verified with dry-run SQL against live data.
@@ -43,11 +43,32 @@ only necessary/useful items were changed, verified with dry-run SQL against live
 history), semantic-search's two-round-trip fetch (marginal), dtdd-fetch name matching (working,
 cached), mood page micro-optimizations (negligible).
 
-**Deployment status:** migrations + edge function are committed but **not yet live** — the
-environment blocks `supabase db push` and the Supabase MCP is read-only. To deploy:
-`supabase db push` then `supabase functions deploy notify-watchlist` (RPC must exist before the
-function update). The web app is safe to ship in either order — with the old RPCs it degrades to
-today's behavior, nothing worse.
+**Deployment status:** migrations + `notify-watchlist` edge function are **deployed and verified
+live** (`supabase db push` + `functions deploy` run by the user 2026-07-17; function shapes and
+grants confirmed against the live DB). The web app half ships via PR #11.
+
+**Merge note:** rebased onto the v6.33 route-convention convergence — the client fixes were
+re-applied to the relocated `FriendProfileClient.tsx` / `ForYouClient.tsx`.
+
+### 🏛️ Route-convention convergence — thin `page.tsx` + `XClient.tsx` everywhere (v6.33, 2026-07-17)
+
+The last unshipped structural refactor queued by the v6.23 audit (§2.2/§4.1). The seven remaining
+fat `'use client'` pages now follow the thin server-`page.tsx` + client-component split the rest of
+the app uses (`home/`, `browse/`, `lists/`, …), retiring the fat-client-page convention repo-wide.
+
+**Changed — behavior-preserving split (`git mv`, bodies untouched):**
+- `profile` (318L), `mood` (220L), `profile/[userId]` (194L), `signup` (156L), `list/[id]` (144L),
+  `login` (136L), `for-you` (122L): each `page.tsx` moved to a colocated `XClient.tsx`
+  (e.g. `app/(app)/profile/ProfileClient.tsx`, following the `home/HomeClient.tsx` placement;
+  existing `components/*Client.tsx` deliberately not relocated) with a new thin server `page.tsx`
+  rendering it.
+- Dynamic routes: the server pages now `await params` and pass plain `userId`/`listId` string
+  props, so `FriendProfileClient` and `ListDetailClient` drop the client-side `use(params)`
+  workaround.
+
+**Added — per-route static metadata** (pattern from `executive-dashboard/page.tsx`) on the five
+static routes: Profile, Mood Explorer, For You, Log In, Sign Up — previously all seven routes fell
+back to the root-layout title.
 
 ### 📝 Documentation sync + branch cleanup (v6.32, 2026-07-17)
 

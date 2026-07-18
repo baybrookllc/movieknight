@@ -314,7 +314,7 @@ RETURNS TABLE (id, title, overview, poster_path, backdrop_path, release_date,
 Personalized recommendations for the calling user (`auth.uid()`), scored 55% genre
 overlap with the user's top-5 watched genres + 45% rating quality, capped at 99.
 `friend_count`/`friend_avatars` report accepted friends who have the title in their
-watch history (v6.33+); `friend_avatars` carries up to 3 DiceBear *seeds* — the client
+watch history (v6.34+); `friend_avatars` carries up to 3 DiceBear *seeds* — the client
 builds URLs via `getAvatarUrl()`.
 
 ```sql
@@ -326,7 +326,7 @@ RETURNS TABLE (id text, title text, poster_path text, backdrop_path text,
 
 ### `get_friend_profile`
 Friend's profile header + last 12 watch-history titles as a single jsonb object
-(v6.33+; previously returned a TABLE of rows, which the client never consumed
+(v6.34+; previously returned a TABLE of rows, which the client never consumed
 correctly). Returns `NULL` unless `are_friends(auth.uid(), p_friend_id)`.
 
 ```sql
@@ -336,7 +336,7 @@ RETURNS jsonb  -- { display_name, avatar_id, recent_titles: [{ id, title,
 ```
 
 ### `get_weekly_digest_picks`
-Set-based digest computation for the `notify-watchlist` edge function (v6.33+):
+Set-based digest computation for the `notify-watchlist` edge function (v6.34+):
 one call returns every eligible user's (`notify_weekly = true`, `notification_email`
 set) top `p_per_user` unwatched new titles (`cached_at >= p_since`, `vote_average >= 7.5`),
 scored with the same 55/45 formula as `get_for_you_feed`. **service_role only.**
