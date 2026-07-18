@@ -57,90 +57,56 @@ serve(async (req) => {
   }
 });
 
+interface DigestPickRow {
+  user_id: string;
+  display_name: string | null;
+  top_genre_ids: number[];
+  title_id: string;
+  title: string;
+  overview: string | null;
+  media_type: string;
+  vote_average: number;
+  score: number;
+}
+
 async function runDigest() {
-  // 1. Find users who have notifications enabled
-  const { data: profiles } = await sb
-    .from('profiles')
-    .select('id, display_name, email:id')
-    .not('notification_email', 'is', null)
-    .eq('notify_weekly', true);
-
-  if (!profiles?.length) return { sent: 0, skipped: 'no eligible profiles' };
-
-  // Get new high-rated titles from the past 7 days
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: newTitles } = await sb
-    .from('titles')
-    .select('id, title, media_type, poster_path, vote_average, release_date, overview')
-    .gte('cached_at', since)
-    .gte('vote_average', 7.5)
-    .order('vote_average', { ascending: false })
-    .limit(20);
 
-  if (!newTitles?.length) return { sent: 0, skipped: 'no new titles this week' };
-
-  // Get genre mappings for new titles
-  const titleIds = newTitles.map(t => t.id);
-  const { data: tg } = await sb
-    .from('title_genres')
-    .select('title_id, genre_id')
-    .in('title_id', titleIds);
-
-  const genresByTitle: Record<string, number[]> = {};
-  (tg ?? []).forEach(({ title_id, genre_id }) => {
-    genresByTitle[title_id] = [...(genresByTitle[title_id] ?? []), genre_id];
+  // One set-based RPC computes every eligible user's picks (eligibility,
+  // top genres, already-watched exclusion, scoring — same formula as the
+  // For You feed), replacing the former 2-queries-per-user loop.
+  const { data: picks, error } = await sb.rpc('get_weekly_digest_picks', {
+    p_since: since,
+    p_per_user: 5,
   });
+  if (error) throw error;
+  if (!picks?.length) return { sent: 0, skipped: 'no eligible users or no new titles this week' };
+
+  const byUser = new Map<string, DigestPickRow[]>();
+  for (const row of picks as DigestPickRow[]) {
+    const rows = byUser.get(row.user_id) ?? [];
+    rows.push(row);
+    byUser.set(row.user_id, rows);
+  }
 
   let sent = 0;
   const errors: string[] = [];
 
-  for (const profile of profiles) {
+  for (const [userId, rows] of byUser) {
     try {
-      // Get user's top genres from watch history
-      const { data: history } = await sb
-        .from('watch_history')
-        .select('title_id')
-        .eq('user_id', profile.id)
-        .eq('status', 'watched')
-        .is('episode_season', null)
-        .limit(100);
-
-      const watchedIds = (history ?? []).map(h => h.title_id);
-
-      const { data: userGenres } = await sb
-        .from('title_genres')
-        .select('genre_id')
-        .in('title_id', watchedIds.slice(0, 100));
-
-      const genreCounts: Record<number, number> = {};
-      (userGenres ?? []).forEach(({ genre_id }) => {
-        genreCounts[genre_id] = (genreCounts[genre_id] ?? 0) + 1;
-      });
-
-      const topGenreIds = Object.entries(genreCounts)
-        .sort((a, b) => +b[1] - +a[1])
-        .slice(0, 5)
-        .map(([id]) => +id);
-
-      // Score new titles against user's taste
-      const scored = newTitles
-        .filter(t => !watchedIds.includes(t.id)) // skip already watched
-        .map(t => {
-          const titleGenres = genresByTitle[t.id] ?? [];
-          const overlap = titleGenres.filter(g => topGenreIds.includes(g)).length;
-          return { ...t, score: overlap * 10 + (t.vote_average ?? 0) };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
-
-      if (!scored.length) continue;
-
       // Get user email via auth admin API
-      const { data: userData } = await sb.auth.admin.getUserById(profile.id);
+      const { data: userData } = await sb.auth.admin.getUserById(userId);
       const email = userData?.user?.email;
       if (!email) continue;
 
-      await sendDigestEmail(email, profile.display_name ?? 'there', scored, topGenreIds);
+      const titles = rows.map(r => ({
+        id: r.title_id,
+        title: r.title,
+        overview: r.overview ?? '',
+        media_type: r.media_type,
+        vote_average: r.vote_average,
+      }));
+      await sendDigestEmail(email, rows[0].display_name ?? 'there', titles, rows[0].top_genre_ids ?? []);
       sent++;
     } catch (e) {
       // Log full error server-side but only return count in response (may contain PII)
