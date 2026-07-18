@@ -8,6 +8,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ⚡ Movie-matching refactor (v6.34, 2026-07-17)
+
+Scoped audit of the matching/recommendation code paths (branch `refactor/movie-matching-optimization`);
+only necessary/useful items were changed, verified with dry-run SQL against live data.
+
+**Fixed — friend profile page was broken live**
+- `get_friend_profile` returned a TABLE of watch-history rows, but the client cast it to a
+  `{ display_name, avatar_id, recent_titles }` object — so the header name rendered blank and
+  "Recently Watched" never appeared. Rebuilt as a jsonb-returning RPC matching the client type
+  (`supabase/migrations/20260717100000_friend_profile_jsonb.sql`), friendship guard preserved.
+- Same page read `get_taste_match`'s TABLE result as an object, so the badge showed
+  "undefined% match" — now unwraps the row (`tasteRes.data?.[0]`).
+
+**Added — For You friend overlap (was dead UI)**
+- `get_for_you_feed` hardcoded `friend_count = 0` / `friend_avatars = '{}'` while the page rendered
+  both. New canonical definition (`20260717100001_for_you_friend_overlap.sql`) counts accepted
+  friends per title and returns up to 3 avatar seeds; scoring/order unchanged. For You page now
+  builds avatar URLs via `getAvatarUrl()` with a plain `<img>` (next/image blocks DiceBear SVGs).
+
+**Changed — weekly digest now set-based and consistent with For You**
+- `notify-watchlist` ran 2 queries per user in a loop (N+1), truncated watch history at 100 rows,
+  and re-implemented genre-overlap scoring in TS with different weights (`overlap*10 + vote` vs
+  SQL's 55/45). New service-role-only `get_weekly_digest_picks(p_since, p_per_user)` RPC
+  (`20260717100002_weekly_digest_picks.sql`) computes all users' picks in one query with the
+  For You formula; the edge function now makes one RPC call and just groups + sends.
+  Note: digest email rankings will differ slightly from the old TS scoring (intended).
+
+**Docs** — `docs/database.md`: corrected the stale `get_for_you_feed` signature (no `p_user_id`,
+`p_limit DEFAULT 12`, `match_pct int`) and documented the new/changed RPCs.
+
+**Out of scope (audited, deliberately excluded):** deleting the duplicate
+`20260516000001_for_you_cte_optimisation.sql` (applied remotely — removal would drift migration
+history), semantic-search's two-round-trip fetch (marginal), dtdd-fetch name matching (working,
+cached), mood page micro-optimizations (negligible).
+
+**Deployment status:** migrations + `notify-watchlist` edge function are **deployed and verified
+live** (`supabase db push` + `functions deploy` run by the user 2026-07-17; function shapes and
+grants confirmed against the live DB). The web app half ships via PR #11.
+
+**Merge note:** rebased onto the v6.33 route-convention convergence — the client fixes were
+re-applied to the relocated `FriendProfileClient.tsx` / `ForYouClient.tsx`.
+
 ### 🏛️ Route-convention convergence — thin `page.tsx` + `XClient.tsx` everywhere (v6.33, 2026-07-17)
 
 The last unshipped structural refactor queued by the v6.23 audit (§2.2/§4.1). The seven remaining

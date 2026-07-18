@@ -45,8 +45,10 @@ export default function FriendProfileClient({ userId }: { userId: string }) {
         supabase.rpc('get_taste_match', { p_friend_id: userId }),
       ]);
       return {
+        // get_friend_profile returns a jsonb object (null if not friends);
+        // get_taste_match RETURNS TABLE, so PostgREST wraps it in an array
         friendData: profileRes.data ?? null,
-        tasteMatch: tasteRes.data ?? null,
+        tasteMatch: tasteRes.data?.[0] ?? null,
       };
     },
   });

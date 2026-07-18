@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { TMDB_IMG, releaseYear } from '@/lib/utils';
+import { TMDB_IMG, releaseYear, getAvatarUrl } from '@/lib/utils';
 import type { ForYouResult } from '@/lib/types';
 
 export default function ForYouClient() {
@@ -97,8 +97,10 @@ export default function ForYouClient() {
                 </div>
                 {item.friend_count > 0 && item.friend_avatars?.length > 0 && (
                   <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex' }}>
+                    {/* friend_avatars carries DiceBear seeds; plain <img> since next/image blocks SVG */}
                     {item.friend_avatars.slice(0, 2).map((av, i) => (
-                      <Image key={i} src={av} alt="" width={20} height={20}
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={getAvatarUrl(av)} alt="" width={20} height={20}
                         style={{ borderRadius: '50%', border: '1px solid var(--bg)', marginLeft: i > 0 ? -6 : 0 }} />
                     ))}
                   </div>

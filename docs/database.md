@@ -311,14 +311,40 @@ RETURNS TABLE (id, title, overview, poster_path, backdrop_path, release_date,
 - Backward compatible — filtering disabled by default for existing code
 
 ### `get_for_you_feed`
-Personalized recommendations based on watch history and friend activity.
+Personalized recommendations for the calling user (`auth.uid()`), scored 55% genre
+overlap with the user's top-5 watched genres + 45% rating quality, capped at 99.
+`friend_count`/`friend_avatars` report accepted friends who have the title in their
+watch history (v6.34+); `friend_avatars` carries up to 3 DiceBear *seeds* — the client
+builds URLs via `getAvatarUrl()`.
 
 ```sql
-get_for_you_feed(
-  p_user_id uuid,
-  p_limit   int DEFAULT 20
-)
-RETURNS TABLE (... Title fields ..., match_pct float, friend_count int, friend_avatars text[])
+get_for_you_feed(p_limit int DEFAULT 12)  -- user comes from auth.uid()
+RETURNS TABLE (id text, title text, poster_path text, backdrop_path text,
+               media_type text, vote_average float, release_date date,
+               match_pct int, friend_count bigint, friend_avatars text[])
+```
+
+### `get_friend_profile`
+Friend's profile header + last 12 watch-history titles as a single jsonb object
+(v6.34+; previously returned a TABLE of rows, which the client never consumed
+correctly). Returns `NULL` unless `are_friends(auth.uid(), p_friend_id)`.
+
+```sql
+get_friend_profile(p_friend_id uuid)
+RETURNS jsonb  -- { display_name, avatar_id, recent_titles: [{ id, title,
+               --   poster_path, media_type, release_date, status }] }
+```
+
+### `get_weekly_digest_picks`
+Set-based digest computation for the `notify-watchlist` edge function (v6.34+):
+one call returns every eligible user's (`notify_weekly = true`, `notification_email`
+set) top `p_per_user` unwatched new titles (`cached_at >= p_since`, `vote_average >= 7.5`),
+scored with the same 55/45 formula as `get_for_you_feed`. **service_role only.**
+
+```sql
+get_weekly_digest_picks(p_since timestamptz, p_per_user int DEFAULT 5)
+RETURNS TABLE (user_id uuid, display_name text, top_genre_ids int[], title_id text,
+               title text, overview text, media_type text, vote_average float, score int)
 ```
 
 ---
