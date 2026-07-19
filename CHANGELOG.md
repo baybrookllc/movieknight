@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ### 🧪 Stabilize the offline e2e auth specs — cold-start flakiness (v6.36, 2026-07-18)
 
 Fixes the pre-existing intermittent failure in the deterministic tier (`next build && next start`,
