@@ -8,6 +8,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 🧹 Movie-matching follow-ups — regression net, fetch unification, digest fixes (v6.35, 2026-07-18)
+
+Cleanup pass on the `refactor/movie-matching-optimization` branch: the *necessary/useful* items the
+v6.34 audit left behind, all evidence-backed against the live code.
+
+**Added — regression net for the recurring RPC-shape bug class**
+- New `lib/matching.ts` centralises the client-side unwrap for the three matching RPCs
+  (`normalizeForYouFeed` → array, `normalizeFriendProfile` → jsonb object | null,
+  `normalizeTasteMatch` → TABLE row `[0]` | null). `lib/matching.test.ts` (9 tests) locks each
+  contract, including the `[]`-in → `null` case that produced the blank header / "undefined% match"
+  live bug. `FriendProfile` / `TasteMatch` types moved into `lib/types.ts` as the single source of
+  truth; `FriendProfileClient` now routes through the shared normalizers.
+- **Deliberately not added: protected-route e2e specs.** `/for-you` and `/profile/[userId]` are in
+  `proxy.ts`'s `PROTECTED` list, and the middleware does a **server-side** `supabase.auth.getUser()`
+  that Playwright's browser-layer mock (`e2e/support/supabase-mock.ts`) cannot intercept — so the
+  offline tier always redirects them to `/login` (this is by design, per the tier's own docstring).
+  The unit tests above are the correct deterministic guard for the contract; SSR-authenticated
+  coverage belongs in the opt-in `e2e/live/**` tier (future, needs seeded data). *(Separately noted:
+  the offline auth specs are timing-flaky on cold prod-start — a pre-existing condition, unchanged
+  here.)*
+
+**Changed — `ForYouClient` unified onto React Query**
+- Replaced the hand-rolled `useEffect` + `Promise.race` 10s timeout + unsafe
+  `result as { data: ForYouResult[] | null }` cast with `useQuery` (keyed on the user), matching
+  `FriendProfileClient` and the rest of the app. Removes the cast and the manual timeout; gains the
+  shared `query-client.ts` caching/retry. Markup unchanged.
+
+**Fixed — weekly-digest email branding + dead links** *(deployed live 2026-07-18)*
+- `supabase/functions/notify-watchlist/index.ts`: header wordmark was still `CINESTREAM` (while its
+  own CTA/footer already said "MovieKnight") → now `MovieKnight`; both CTA/preferences links pointed
+  at the dead `cinestream-app-lake.vercel.app/v2` → now an env-driven `APP_URL`
+  (`https://movieknight.ca` default). Same `APP_URL` default fix in
+  `supabase/functions/tv-auth/index.ts`. **Deployed** via `supabase functions deploy
+  notify-watchlist tv-auth` (2026-07-18). *(Out of scope, noted: the legacy origin still in
+  `_shared/cors-utils.ts` allowlist — left intact to avoid breaking a possibly-live deployment.)*
+
+**Fixed — docs/config drift**
+- `playwright.config.ts` docstring + `e2e/README.md` claimed the deterministic tier "runs against
+  `next dev`"; it actually runs `next build && next start` (as the config's own `webServer` shows) —
+  corrected both.
+- `README.md`: `next.config.js` → `next.config.ts` (+ added `eslint.config.mjs` to the tree), ESLint
+  "configured in `next.config.js`" → `eslint.config.mjs`, test count/location "29 tests in
+  lib/, components/, app/" → "38 tests in lib/", version banner → v6.35.
+- Added a "retained duplicate — do not delete" header to
+  `supabase/migrations/20260516000001_for_you_cte_optimisation.sql` (shares a slug with
+  `…515000006`; already applied remotely — see v6.34).
+
+**Verification:** 38 Vitest tests pass, `tsc --noEmit` clean, ESLint clean on changed files. The
+edge-function changes are deployed live; the web-app half ships via a PR to `master`.
+
+**Out of scope (user-confirmed):** the app-wide `CINESTREAM → MovieKnight` UI rebrand
+(Header/Login/Signup) — a separate deliberate decision; this pass touched branding only inside the
+digest email (this branch's own file).
+
 ### ⚡ Movie-matching refactor (v6.34, 2026-07-17)
 
 Scoped audit of the matching/recommendation code paths (branch `refactor/movie-matching-optimization`);

@@ -165,6 +165,30 @@ export interface DtddTopic {
   noSum: number;
 }
 
+// Return shape of the get_friend_profile() RPC — a single jsonb object
+// (NOT a TABLE), or null when the viewer and target are not friends. Casting
+// this to an array (or reading a TABLE result as this object) is the recurring
+// shape-mismatch bug class; see lib/matching.ts for the guarded unwrap.
+export interface FriendProfile {
+  display_name: string;
+  avatar_id: string | null;
+  recent_titles: {
+    id: string;
+    title: string;
+    poster_path: string | null;
+    media_type: 'movie' | 'tv';
+    release_date: string | null;
+    status: string;
+  }[];
+}
+
+// Return shape of the get_taste_match() RPC — RETURNS TABLE, so PostgREST wraps
+// the single row in an array; callers must read `[0]` (see lib/matching.ts).
+export interface TasteMatch {
+  compatibility_pct: number;
+  titles_in_common: number;
+}
+
 export interface SearchResult {
   id: string;
   title: string;

@@ -8,10 +8,10 @@ import { readFileSync } from 'node:fs';
  *
  *  • Deterministic tier (default) — every Supabase request is intercepted at
  *    the browser layer (see e2e/support/supabase-mock.ts), so the suite makes
- *    ZERO real network calls and needs no secrets. It runs against `next dev`
- *    with dummy Supabase env, exercising only client-rendered public routes
- *    (/login, /signup, /browse) whose server layer does no Supabase fetch.
- *    This is what gates CI.
+ *    ZERO real network calls and needs no secrets. It runs against a production
+ *    build (`next build && next start`, see webServer below) with dummy Supabase
+ *    env, exercising only client-rendered public routes (/login, /signup,
+ *    /browse) whose server layer does no Supabase fetch. This is what gates CI.
  *
  *  • Live tier (E2E_LIVE=1) — the specs under e2e/live/ render the SSR pages
  *    (/home, a title detail page) against the real backend using .env.local.

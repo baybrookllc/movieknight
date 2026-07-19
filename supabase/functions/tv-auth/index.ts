@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
     const { error } = await admin.from("device_auth_codes").insert({ code });
     if (error) return json({ error: "Could not create code" }, 500);
 
-    const appUrl = Deno.env.get("APP_URL") ?? "https://cinestream-app-lake.vercel.app";
+    const appUrl = Deno.env.get("APP_URL") ?? "https://movieknight.ca";
     const qr_url = `${appUrl}?tv_link=${code}`;
 
     return json({ code, qr_url });

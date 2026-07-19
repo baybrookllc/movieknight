@@ -9,18 +9,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToast } from '@/components/Toast';
 import { getAvatarUrl, TMDB_IMG, releaseYear } from '@/lib/utils';
 import { useFocusTrap } from '@/lib/a11y';
-
-interface FriendProfile {
-  display_name: string;
-  avatar_id: string | null;
-  recent_titles: {
-    id: string; title: string;
-    poster_path: string | null;
-    media_type: 'movie' | 'tv';
-    release_date: string | null;
-    status: string;
-  }[];
-}
+import { normalizeFriendProfile, normalizeTasteMatch } from '@/lib/matching';
+import type { FriendProfile, TasteMatch } from '@/lib/types';
 
 export default function FriendProfileClient({ userId }: { userId: string }) {
   const router = useRouter();
@@ -38,17 +28,17 @@ export default function FriendProfileClient({ userId }: { userId: string }) {
     enabled: !!user,
     queryFn: async (): Promise<{
       friendData: FriendProfile | null;
-      tasteMatch: { compatibility_pct: number; titles_in_common: number } | null;
+      tasteMatch: TasteMatch | null;
     }> => {
       const [profileRes, tasteRes] = await Promise.all([
         supabase.rpc('get_friend_profile', { p_friend_id: userId }),
         supabase.rpc('get_taste_match', { p_friend_id: userId }),
       ]);
+      // Guarded unwrap (see lib/matching.ts): get_friend_profile → jsonb object,
+      // get_taste_match RETURNS TABLE so PostgREST wraps its row in an array.
       return {
-        // get_friend_profile returns a jsonb object (null if not friends);
-        // get_taste_match RETURNS TABLE, so PostgREST wraps it in an array
-        friendData: profileRes.data ?? null,
-        tasteMatch: tasteRes.data?.[0] ?? null,
+        friendData: normalizeFriendProfile(profileRes.data),
+        tasteMatch: normalizeTasteMatch(tasteRes.data),
       };
     },
   });

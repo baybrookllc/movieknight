@@ -1,44 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { TMDB_IMG, releaseYear, getAvatarUrl } from '@/lib/utils';
-import type { ForYouResult } from '@/lib/types';
+import { normalizeForYouFeed } from '@/lib/matching';
 
 export default function ForYouClient() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [items, setItems] = useState<ForYouResult[] | null>(null);
-  // Derive loading: true while auth is resolving, or once we have a user but no data yet
-  const loading = authLoading || (!!user && items === null);
 
-  useEffect(() => {
-    if (!user) return;
+  const { data: items, isPending } = useQuery({
+    queryKey: ['for-you', user?.id],
+    enabled: !!user,
+    // get_for_you_feed RETURNS TABLE → PostgREST gives an array; guard the
+    // unwrap (see lib/matching.ts). React Query's retry/cache replaces the
+    // former hand-rolled Promise.race timeout.
+    queryFn: async () => {
+      const { data } = await supabase.rpc('get_for_you_feed', { p_limit: 40 });
+      return normalizeForYouFeed(data);
+    },
+  });
 
-    // Wrap RPC call with timeout using Promise.race
-    const rpcPromise = supabase.rpc('get_for_you_feed', { p_limit: 40 });
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('RPC timeout (10s)')), 10000)
-    );
-
-    Promise.race([rpcPromise, timeoutPromise])
-      .then((result) => {
-        const { data } = result as { data: ForYouResult[] | null };
-        setItems(data ?? []);
-      })
-      .catch((err) => {
-        if (err instanceof Error && err.message.includes('timeout')) {
-          console.warn('[for-you] RPC timeout (10s)');
-        } else {
-          console.error('[for-you] RPC error:', err);
-        }
-        setItems([]);
-      });
-  }, [user]);
+  // Loading while auth resolves, or while the (enabled) query is in flight.
+  const loading = authLoading || (!!user && isPending);
 
   if (!user && !authLoading) {
     return (

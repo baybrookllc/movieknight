@@ -1,3 +1,7 @@
+-- NOTE: This file shares the `for_you_cte_optimisation` slug with the earlier
+-- 20260515000006_for_you_cte_optimisation.sql. It is a duplicate that is RETAINED
+-- DELIBERATELY — it is already applied on the remote database, so deleting it would
+-- drift the migration history (see CHANGELOG v6.34). Do NOT "clean it up."
 -- ═══════════════════════════════════════════════════════════════
 -- FOR-YOU FEED CTE OPTIMISATION — Wave 6 follow-up
 -- 1) Replace NOT IN anti-join with NOT EXISTS (safer, faster with NULLs)

@@ -21,6 +21,8 @@ const NOTIFY_SECRET = Deno.env.get('NOTIFY_SECRET') ?? '';
 // Set FROM_EMAIL via: supabase secrets set FROM_EMAIL="MovieKnight <your@verified-domain.com>"
 // Until a verified domain is configured, Resend only delivers to the Resend account owner's email.
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') ?? 'MovieKnight <onboarding@resend.dev>';
+// Canonical app URL for email links; override via `supabase secrets set APP_URL=...`.
+const APP_URL = Deno.env.get('APP_URL') ?? 'https://movieknight.ca';
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -167,7 +169,7 @@ async function sendDigestEmail(
         <!-- Header -->
         <tr><td style="padding-bottom:32px">
           <div style="font-size:22px;font-weight:900;letter-spacing:1px;color:#fff">
-            CINE<span style="color:#FF2E63">STREAM</span>
+            Movie<span style="color:#FF2E63">Knight</span>
           </div>
         </td></tr>
 
@@ -190,7 +192,7 @@ async function sendDigestEmail(
 
         <!-- CTA -->
         <tr><td style="padding:32px 0">
-          <a href="https://cinestream-app-lake.vercel.app/v2"
+          <a href="${APP_URL}"
              style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#4158D0,#C850C0,#FF2E63);color:#fff;font-size:14px;font-weight:700;text-decoration:none;border-radius:99px">
             Open MovieKnight
           </a>
@@ -200,7 +202,7 @@ async function sendDigestEmail(
         <tr><td style="padding-top:24px;border-top:1px solid #1e1e2e">
           <p style="margin:0;font-size:11px;color:#374151;line-height:1.6">
             You're receiving this because you enabled weekly digests in MovieKnight.<br>
-            <a href="https://cinestream-app-lake.vercel.app/v2" style="color:#6b7280">Manage preferences</a>
+            <a href="${APP_URL}" style="color:#6b7280">Manage preferences</a>
           </p>
         </td></tr>
 
