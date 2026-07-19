@@ -38,7 +38,7 @@ test.describe('Authentication', () => {
     await page.locator('input[type="email"]').fill('e2e@example.com');
     await page.locator('input[type="password"]').fill('correct-password');
     await page.getByRole('button', { name: 'Log In' }).click();
-    await page.waitForURL(/\/home/, { timeout: 15000 });
+    await page.waitForURL(/\/home/);
     await expect(page).toHaveURL(/\/home/);
   });
 

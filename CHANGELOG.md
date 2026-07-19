@@ -8,19 +8,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-> **Next session — stabilize the offline e2e auth specs (pre-existing cold-start flakiness).**
-> The deterministic tier (`next build && next start`, `workers: 1`) intermittently fails a *different*
-> auth spec each run — cold first-hit latency per route (only `/` is warmed by `webServer.url`) plus
-> the variable-latency server-side `getUser()` in `proxy.ts` against the dummy `test.supabase.co`,
-> against tight default timeouts with no local retry. CI masks it with `retries: 2`.
-> **Plan:** (A) add a `globalSetup` that warms `/login`, `/signup`, `/browse`, `/home` before the
-> suite; (B) point the deterministic `NEXT_PUBLIC_SUPABASE_URL` at a closed local port so the
-> middleware's server-side auth fails *fast*, broadening the browser mock in
-> `e2e/support/supabase-mock.ts` from a `*.supabase.co` host match to a path match
-> (`**/auth/v1/**`, `**/rest/v1/**`, `**/functions/v1/**`); (C) add `expect`/navigation timeout
-> headroom + one local retry and drop the hard-coded `{ timeout: 15000 }` in `e2e/auth.spec.ts`.
-> Do A+C first (likely sufficient); verify by running the offline suite 5× with 0 failures. Test-infra
-> only, ~1–1.5 hrs.
+### 🧪 Stabilize the offline e2e auth specs — cold-start flakiness (v6.36, 2026-07-18)
+
+Fixes the pre-existing intermittent failure in the deterministic tier (`next build && next start`,
+`workers: 1`) where a *different* auth/browse spec timed out each run. Root cause: only `/` is warmed
+by `webServer.url`, so every other route paid its one-off cold cost — module instantiation plus the
+middleware's per-request server-side `supabase.auth.getUser()` (`proxy.ts`) against the dummy host —
+*inside* a timed test step, against Playwright's tight default timeouts with no local retry. CI merely
+masked it with `retries: 2`.
+
+**Fixed — Plan A (warmup) + Plan C (timeout headroom + retry)**
+- New `e2e/support/global-setup.ts`: a `globalSetup` that GETs `/login`, `/signup`, `/browse`, `/home`
+  once before the suite so each route's module graph (and the first-hit `getUser`) is warm before the
+  first assertion. Best-effort — a slow/failing warmup logs and continues rather than aborting the run.
+  Playwright starts the `webServer` and awaits its `url` *before* `globalSetup`, so the server is
+  guaranteed listening here. No-op for the live tier.
+- `playwright.config.ts`: added per-test `timeout: 60_000` (2× the default 30s cap that the one
+  observed flake — the login→`/home` redirect on a cold `getUser` — actually hit), `expect.timeout`
+  10s, `use.navigationTimeout` 30s, `use.actionTimeout` 15s, and one local retry (`retries: 1`; CI
+  keeps 2). Corrected the tier docstring, which had claimed "ZERO real network calls" — the middleware's
+  *server-side* `getUser` is not interceptable by the browser-layer mock and does contact the dummy
+  host; that call's cold latency, not any product bug, is the flake source.
+- `e2e/auth.spec.ts`: dropped the hard-coded `waitForURL(..., { timeout: 15000 })` so it inherits the
+  config's navigation headroom.
+
+**Deliberately not done — Plan B (fail-fast middleware auth via a closed port).** The original plan was
+to point the deterministic `NEXT_PUBLIC_SUPABASE_URL` at a closed local port so the server-side
+`getUser` refuses instantly. It was evaluated and rejected: `NEXT_PUBLIC_*` is **build-time-inlined**
+into both the client and middleware bundles (runtime env can't make them differ), so the closed-port
+URL would also be baked into the client, where the strict production CSP (`proxy.ts`
+`connect-src 'self' https://*.supabase.co …`) blocks any other origin *before* the browser mock can
+intercept it — breaking every login/signup test. Making B work would require loosening the production
+CSP for tests, which is disproportionate to a retry-absorbed cold-DNS edge. A+C is sufficient.
+
+**Verification.** Ran the offline suite 5× against a freshly-started prod build: **0 failures, 0
+flaky** (all 11 tests, ~8s/run), including the cold-server first run that previously flaked. *(Caveat:
+the OS DNS cache for the dummy host likely persisted across local runs, so the coldest possible
+`getUser` path may not have been fully re-exercised — the layered warmup + 60s ceiling + retry cover
+that worst case regardless.)* Test-infra only; no product-code change.
 
 ### 🧹 Movie-matching follow-ups — regression net, fetch unification, digest fixes (v6.35, 2026-07-18)
 

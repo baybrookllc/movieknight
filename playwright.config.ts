@@ -6,12 +6,17 @@ import { readFileSync } from 'node:fs';
  *
  * Two tiers, selected by the E2E_LIVE env var:
  *
- *  • Deterministic tier (default) — every Supabase request is intercepted at
- *    the browser layer (see e2e/support/supabase-mock.ts), so the suite makes
- *    ZERO real network calls and needs no secrets. It runs against a production
+ *  • Deterministic tier (default) — every *browser-layer* Supabase request is
+ *    intercepted (see e2e/support/supabase-mock.ts), so the client makes no real
+ *    network calls and the suite needs no secrets. It runs against a production
  *    build (`next build && next start`, see webServer below) with dummy Supabase
- *    env, exercising only client-rendered public routes (/login, /signup,
- *    /browse) whose server layer does no Supabase fetch. This is what gates CI.
+ *    env, exercising client-rendered public routes (/login, /signup, /browse).
+ *    NOTE: the middleware (proxy.ts) still runs a *server-side*
+ *    `supabase.auth.getUser()` per request against the dummy host — that call is
+ *    not interceptable at the browser layer and fails/degrades gracefully. Its
+ *    variable latency on a cold `next start`, not any product bug, is why routes
+ *    are warmed up front (globalSetup) and given timeout headroom below. This is
+ *    what gates CI.
  *
  *  • Live tier (E2E_LIVE=1) — the specs under e2e/live/ render the SSR pages
  *    (/home, a title detail page) against the real backend using .env.local.
@@ -27,6 +32,14 @@ const BASE_URL = `http://localhost:${PORT}`;
 // the browser client construct and the app boot — every request is stubbed.
 // Setting them in the process env also stops Next from loading the real values
 // out of .env.local (Next never overrides an env var already present).
+//
+// NOTE: the host stays under *.supabase.co on purpose. `NEXT_PUBLIC_*` is
+// build-time-inlined into BOTH the client and the middleware bundle, and the
+// production CSP (proxy.ts `connect-src`) only allows `https://*.supabase.co` —
+// so any other host would be blocked in the browser before the mock could
+// intercept it. The middleware's server-side getUser against this host still
+// costs a first-hit DNS/connect (the residual cold-start cost); the globalSetup
+// warmup pays it up front and the local retry absorbs the remainder.
 const DETERMINISTIC_ENV = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
   NEXT_PUBLIC_SUPABASE_ANON_KEY:
@@ -69,9 +82,24 @@ export default defineConfig({
   // skips the live folder.
   testDir: IS_LIVE ? './e2e/live' : './e2e',
   testIgnore: IS_LIVE ? undefined : ['**/live/**'],
+  // Warm every offline route before the suite so per-route cold-start cost isn't
+  // paid inside a timed test step (see e2e/support/global-setup.ts). No-op for
+  // the live tier.
+  globalSetup: IS_LIVE ? undefined : './e2e/support/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // One local retry absorbs the residual server-side getUser() latency variance
+  // on a cold prod start; CI keeps 2. Combined with the warmup above and the
+  // timeout headroom below, this is what stabilises the offline auth specs.
+  retries: process.env.CI ? 2 : 1,
+  // Headroom over Playwright's default 5s expect / 30s navigation / 30s per-test
+  // so a warm-but-slow first hit doesn't flake. These are ceilings, not waits —
+  // a fast route still resolves immediately. The per-test bump matters most: the
+  // one observed flake was the login→/home redirect hitting the 30s *test* cap
+  // while `waitForURL` waited on the cold server-side getUser; 60s lets it pass
+  // on the first attempt rather than leaning on the retry.
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
   // One worker: a single `next start` process serves every request, and the
   // first hit to each route pays a cold module-instantiation cost. Parallel
   // workers hammering it at once overwhelm that cold start and time out
@@ -84,6 +112,10 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: 'on-first-retry',
+    // Navigation headroom for the cold first hit; actionTimeout stays modest so
+    // a genuinely stuck click still fails fast.
+    navigationTimeout: 30_000,
+    actionTimeout: 15_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
