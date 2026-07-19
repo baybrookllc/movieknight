@@ -9,8 +9,8 @@ npm run test:e2e          # headless
 npm run test:e2e:ui       # interactive UI mode for debugging
 ```
 
-- Runs against `next dev` booted with **dummy** Supabase env, so it needs no
-  secrets and makes **zero** real network calls.
+- Runs against a production build (`next build && next start`) with **dummy**
+  Supabase env, so it needs no secrets and makes **zero** real network calls.
 - Every `*.supabase.co` request is intercepted at the browser layer by
   `e2e/support/supabase-mock.ts`, which serves tiny local fixtures (auth token,
   edge-function search results) and returns an empty array for everything else.

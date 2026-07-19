@@ -3,7 +3,7 @@
 > A dark-mode movie and TV tracking app with semantic search, episode tracking, and collaborative lists.
 
 **Live:** https://movieknight.ca  
-**Current Version:** v6.32 (Jul 17, 2026 · 16:23 EDT)  
+**Current Version:** v6.35 (Jul 18, 2026 · 09:20 EDT)  
 **Status:** 🟢 Production-ready · Trigger warning filtering · Claude AI assistant · Automated deployments · Unit + e2e tests (Vitest + Playwright) · WCAG-AA keyboard/contrast pass  
 **In progress:** Physical-media commerce vertical — Phase P0 (schema) live on production; UI (P1) next.
 
@@ -123,7 +123,8 @@ movieknight/
 ├── package.json
 ├── tsconfig.json
 ├── playwright.config.ts
-├── next.config.js
+├── next.config.ts
+├── eslint.config.mjs
 └── CLAUDE.md                  # Project guide (agents)
 ```
 
@@ -270,7 +271,7 @@ supabase functions logs semantic-search
 ## 🧪 Testing
 
 ```bash
-npm test              # Vitest unit tests (lib/, components/, app/ — 29 tests)
+npm test              # Vitest unit tests (pure logic in lib/ — 38 tests)
 npm run test:e2e       # Playwright e2e — deterministic tier, no secrets needed
 npm run test:e2e:ui    # Playwright e2e — interactive UI mode for debugging
 ```
@@ -353,7 +354,7 @@ Monitored via:
 
 ### Code Style
 - **TypeScript** for type safety
-- **ESLint** for linting (configured in `next.config.js`)
+- **ESLint** for linting (configured in `eslint.config.mjs`)
 - **Prettier** for formatting (via pre-commit hooks)
 
 ---
