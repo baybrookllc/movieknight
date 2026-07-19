@@ -35,13 +35,13 @@ v6.34 audit left behind, all evidence-backed against the live code.
   `FriendProfileClient` and the rest of the app. Removes the cast and the manual timeout; gains the
   shared `query-client.ts` caching/retry. Markup unchanged.
 
-**Fixed — weekly-digest email branding + dead links** *(deployment ready, waiting on deploy)*
+**Fixed — weekly-digest email branding + dead links** *(deployed live 2026-07-18)*
 - `supabase/functions/notify-watchlist/index.ts`: header wordmark was still `CINESTREAM` (while its
   own CTA/footer already said "MovieKnight") → now `MovieKnight`; both CTA/preferences links pointed
   at the dead `cinestream-app-lake.vercel.app/v2` → now an env-driven `APP_URL`
   (`https://movieknight.ca` default). Same `APP_URL` default fix in
-  `supabase/functions/tv-auth/index.ts`. **Live effect requires** `supabase functions deploy
-  notify-watchlist tv-auth` (user-run). *(Out of scope, noted: the legacy origin still in
+  `supabase/functions/tv-auth/index.ts`. **Deployed** via `supabase functions deploy
+  notify-watchlist tv-auth` (2026-07-18). *(Out of scope, noted: the legacy origin still in
   `_shared/cors-utils.ts` allowlist — left intact to avoid breaking a possibly-live deployment.)*
 
 **Fixed — docs/config drift**
@@ -56,7 +56,7 @@ v6.34 audit left behind, all evidence-backed against the live code.
   `…515000006`; already applied remotely — see v6.34).
 
 **Verification:** 38 Vitest tests pass, `tsc --noEmit` clean, ESLint clean on changed files. The
-edge-function changes ship in the PR but need a `functions deploy` to go live.
+edge-function changes are deployed live; the web-app half ships via a PR to `master`.
 
 **Out of scope (user-confirmed):** the app-wide `CINESTREAM → MovieKnight` UI rebrand
 (Header/Login/Signup) — a separate deliberate decision; this pass touched branding only inside the
