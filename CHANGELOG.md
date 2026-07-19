@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### 📝 e2e/README accuracy follow-up (v6.37, 2026-07-19)
+
+Docs-only. `e2e/README.md` still claimed the deterministic tier makes "**zero** real network
+calls" — the same imprecision the v6.36 work corrected in `playwright.config.ts`. The browser layer
+makes none (all `*.supabase.co` requests are mocked), but the middleware's *server-side*
+`supabase.auth.getUser()` (`proxy.ts`) does contact the dummy host per request. Reworded to say so,
+and documented the new stability measures (globalSetup warmup, 60s per-test timeout, one local
+retry) so the README matches the config. No code change.
+
 ### 🧪 Stabilize the offline e2e auth specs — cold-start flakiness (v6.36, 2026-07-18)
 
 Fixes the pre-existing intermittent failure in the deterministic tier (`next build && next start`,

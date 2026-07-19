@@ -10,10 +10,18 @@ npm run test:e2e:ui       # interactive UI mode for debugging
 ```
 
 - Runs against a production build (`next build && next start`) with **dummy**
-  Supabase env, so it needs no secrets and makes **zero** real network calls.
-- Every `*.supabase.co` request is intercepted at the browser layer by
+  Supabase env, so it needs no secrets.
+- Every `*.supabase.co` request is intercepted at the **browser layer** by
   `e2e/support/supabase-mock.ts`, which serves tiny local fixtures (auth token,
-  edge-function search results) and returns an empty array for everything else.
+  edge-function search results) and returns an empty array for everything else —
+  so the client makes no real network calls. The one thing the mock can't touch
+  is the middleware's **server-side** `supabase.auth.getUser()` (`proxy.ts`),
+  which contacts the dummy host per request and fails/degrades gracefully; its
+  first-hit latency on a cold `next start` used to make the suite flaky.
+- Stability: `e2e/support/global-setup.ts` warms every route once before the
+  suite (so that cold cost isn't paid inside a timed test), and the config adds
+  timeout headroom (60s per-test) plus one local retry. See the header docstring
+  in `playwright.config.ts` for the full rationale.
 - Covers only client-rendered public routes (`/login`, `/signup`, `/browse` and
   its search overlay) — the parts whose behaviour is deterministic and
   backend-independent.
