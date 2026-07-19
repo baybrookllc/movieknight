@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+> **Next session — stabilize the offline e2e auth specs (pre-existing cold-start flakiness).**
+> The deterministic tier (`next build && next start`, `workers: 1`) intermittently fails a *different*
+> auth spec each run — cold first-hit latency per route (only `/` is warmed by `webServer.url`) plus
+> the variable-latency server-side `getUser()` in `proxy.ts` against the dummy `test.supabase.co`,
+> against tight default timeouts with no local retry. CI masks it with `retries: 2`.
+> **Plan:** (A) add a `globalSetup` that warms `/login`, `/signup`, `/browse`, `/home` before the
+> suite; (B) point the deterministic `NEXT_PUBLIC_SUPABASE_URL` at a closed local port so the
+> middleware's server-side auth fails *fast*, broadening the browser mock in
+> `e2e/support/supabase-mock.ts` from a `*.supabase.co` host match to a path match
+> (`**/auth/v1/**`, `**/rest/v1/**`, `**/functions/v1/**`); (C) add `expect`/navigation timeout
+> headroom + one local retry and drop the hard-coded `{ timeout: 15000 }` in `e2e/auth.spec.ts`.
+> Do A+C first (likely sufficient); verify by running the offline suite 5× with 0 failures. Test-infra
+> only, ~1–1.5 hrs.
+
 ### 🧹 Movie-matching follow-ups — regression net, fetch unification, digest fixes (v6.35, 2026-07-18)
 
 Cleanup pass on the `refactor/movie-matching-optimization` branch: the *necessary/useful* items the
